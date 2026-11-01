@@ -73,8 +73,6 @@ crashlytics-build.properties
 *.app
 *.ipa
 *.exe
-*.tgz
-*.tar.gz
 
 # ==========================================
 # Addressables & Visual Scripting
