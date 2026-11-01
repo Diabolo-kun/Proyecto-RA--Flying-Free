@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1b1a74c317ceae44bafdb23afec52856, type: 3}
+  m_Name: Cuaderno
+  m_EditorClassIdentifier: 
+  id: Cuaderno
+  displayName: Cuaderno
+  description: Equilibrio entre velocidad y control.
+  prefab: {fileID: 3913206083962907642, guid: 0d0b3211e5e88cc43a1c4185a7971f28, type: 3}
+  thumbnail: {fileID: 2800000, guid: 81487acd393f49248ade35b865aef63f, type: 3}
+  accent: {r: 0.28, g: 0.53, b: 0.68, a: 1}
+  minimumSpeed: 1.7
+  maximumSpeed: 3.3
+  turnSpeed: 110
+  steeringResponse: 4.6
+  lift: 0.2
+  gripOffset: {x: -0, y: 0, z: 0}

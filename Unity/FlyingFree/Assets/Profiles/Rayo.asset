@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1b1a74c317ceae44bafdb23afec52856, type: 3}
+  m_Name: Rayo
+  m_EditorClassIdentifier: 
+  id: Rayo
+  displayName: Rayo
+  description: Mas rapido. Anticipa los giros.
+  prefab: {fileID: 88771024274640976, guid: 8e98f5390e59ef64d80df126390c406f, type: 3}
+  thumbnail: {fileID: 2800000, guid: c5afd89fba36e8942ade02af90cbdb2f, type: 3}
+  accent: {r: 0.87, g: 0.47, b: 0.2, a: 1}
+  minimumSpeed: 2.4
+  maximumSpeed: 4.6
+  turnSpeed: 76
+  steeringResponse: 2.5
+  lift: 0.13
+  gripOffset: {x: 0.011960002, y: 0, z: 0}
