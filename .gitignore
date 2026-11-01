@@ -68,8 +68,6 @@ crashlytics-build.properties
 # ==========================================
 *.apk
 *.aab
-*.unitypackage
-*.unitypackage.meta
 *.app
 *.ipa
 *.exe
