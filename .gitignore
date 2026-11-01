@@ -90,6 +90,14 @@ ServerData/
 **/InitTestScene*.unity*
 
 # ==========================================
+# Animaciones pesadas de vídeo/cinemática (>100MB)
+# ==========================================
+*Video_Completo.anim
+*Video_Completo.anim.meta
+*Vida_Parque_Completa.anim
+*Vida_Parque_Completa.anim.meta
+
+# ==========================================
 # Archivos del Sistema Operativo
 # ==========================================
 .DS_Store

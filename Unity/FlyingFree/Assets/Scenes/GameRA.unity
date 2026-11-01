@@ -560,7 +560,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TargetPlaneSpawner
   imageTargetObserver: {fileID: 1828078741}
-  prefabToSpawn: {fileID: 100001, guid: 7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c04, type: 3}
+  prefabToSpawn: {fileID: 7130491110729975033, guid: ad9d8dcb3300648488b5f871f8921db0, type: 3}
   areaShape: 0
   planeSize: {x: 2, y: 1.5}
   circleRadius: 1
