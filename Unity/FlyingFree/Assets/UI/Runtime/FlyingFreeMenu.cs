@@ -16,14 +16,21 @@ namespace FlyingFree.UI
         public GameObject mainPage;
         public GameObject settingsPage;
         public Button playButton, settingsButton, exitButton, backButton;
+        [Tooltip("Botón para reiniciar o seleccionar el avión estándar")]
+        public Button resetPlaneButton;
         public Slider soundSlider, musicSlider;
         public Toggle muteToggle;
         public Text soundValue, musicValue;
+        [Tooltip("Texto descriptivo que muestra el estado o tipo de avión")]
+        public Text planeStatusText;
         public bool quitApplicationOnExit = true;
         public UnityEvent onPlayRequested = new UnityEvent();
         public UnityEvent onExitRequested = new UnityEvent();
         public UnityEvent onSettingsOpened = new UnityEvent();
         public UnityEvent onSettingsClosed = new UnityEvent();
+        [Tooltip("Se dispara al pulsar el botón Volver / Menú Principal en la pantalla de ajustes")]
+        public UnityEvent onBackRequested = new UnityEvent();
+        public UnityEvent onResetPlaneRequested = new UnityEvent();
         [Tooltip("Effective 0..1 volume; emits 0 while muted. Bind to an audio adapter.")]
         public VolumeEvent onSoundVolumeChanged = new VolumeEvent();
         public VolumeEvent onMusicVolumeChanged = new VolumeEvent();
@@ -40,6 +47,7 @@ namespace FlyingFree.UI
             settingsButton.onClick.AddListener(OpenSettings);
             exitButton.onClick.AddListener(Exit);
             backButton.onClick.AddListener(CloseSettings);
+            if (resetPlaneButton != null) resetPlaneButton.onClick.AddListener(ResetPlane);
             soundSlider.onValueChanged.AddListener(SetSoundVolume);
             musicSlider.onValueChanged.AddListener(SetMusicVolume);
             muteToggle.onValueChanged.AddListener(SetMuted);
@@ -80,10 +88,23 @@ namespace FlyingFree.UI
         {
             if (!IsSettingsOpen) return;
             Save();
+            onBackRequested.Invoke();
             settingsPage.SetActive(false);
             mainPage.SetActive(true);
             Select(settingsButton);
             onSettingsClosed.Invoke();
+        }
+        public void ResetPlane()
+        {
+            Debug.Log("[FlyingFreeMenu] Avión estándar restablecido / seleccionado correctamente.");
+            SetPlaneStatusText("Estándar");
+            onResetPlaneRequested.Invoke();
+        }
+        /// <summary>Modifica dinámicamente el texto que acompaña al botón de configuración del avión.</summary>
+        public void SetPlaneStatusText(string newText)
+        {
+            if (planeStatusText != null)
+                planeStatusText.text = newText;
         }
         public void SetSoundVolume(float value)
         {
@@ -139,6 +160,7 @@ namespace FlyingFree.UI
             settingsButton.onClick.RemoveListener(OpenSettings);
             exitButton.onClick.RemoveListener(Exit);
             backButton.onClick.RemoveListener(CloseSettings);
+            if (resetPlaneButton != null) resetPlaneButton.onClick.RemoveListener(ResetPlane);
             soundSlider.onValueChanged.RemoveListener(SetSoundVolume);
             musicSlider.onValueChanged.RemoveListener(SetMusicVolume);
             muteToggle.onValueChanged.RemoveListener(SetMuted);
