@@ -23,10 +23,15 @@ public static class MenuSeleccionAvion
         CrearSiHayMenu();
     }
 
+    public static void Asegurar()
+    {
+        CrearSiHayMenu();
+    }
+
     static void CrearSiHayMenu()
     {
         FlyingFree.UI.FlyingFreeMenu menu = Object.FindFirstObjectByType<FlyingFree.UI.FlyingFreeMenu>();
-        if (menu == null || YaExiste(menu.transform))
+        if (menu == null)
             return;
 
         Transform jugar = Buscar(menu.transform, "JUGAR");
@@ -36,16 +41,18 @@ public static class MenuSeleccionAvion
         if (jugar == null || config == null)
             return;
 
+        Transform existente = Buscar(menu.transform, NombreBoton);
+        if (existente != null)
+        {
+            Conectar(existente.GetComponent<Button>());
+            return;
+        }
+
         GameObject copia = Object.Instantiate(config.gameObject, config.parent);
         copia.name = NombreBoton;
         copia.transform.SetSiblingIndex(jugar.GetSiblingIndex() + 1);
 
-        Button boton = copia.GetComponent<Button>();
-        if (boton != null)
-        {
-            boton.onClick.RemoveAllListeners();
-            boton.onClick.AddListener(AbrirEscena);
-        }
+        Conectar(copia.GetComponent<Button>());
 
         Text etiqueta = copia.GetComponentInChildren<Text>();
         if (etiqueta != null)
@@ -67,14 +74,18 @@ public static class MenuSeleccionAvion
             Colocar(salir, -331f, 760f, 150f);
     }
 
+    static void Conectar(Button boton)
+    {
+        if (boton == null)
+            return;
+
+        boton.onClick.RemoveAllListeners();
+        boton.onClick.AddListener(AbrirEscena);
+    }
+
     static void AbrirEscena()
     {
         SceneManager.LoadScene(Escena);
-    }
-
-    static bool YaExiste(Transform raiz)
-    {
-        return Buscar(raiz, NombreBoton) != null;
     }
 
     static Transform Buscar(Transform raiz, string nombre)
@@ -96,7 +107,11 @@ public static class MenuSeleccionAvion
             return;
 
         rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
-        rect.anchoredPosition = new Vector2(0f, y);
-        rect.sizeDelta = new Vector2(ancho, alto);
+        Vector2 posicion = new Vector2(0f, y);
+        Vector2 tamano = new Vector2(ancho, alto);
+        if (rect.anchoredPosition != posicion)
+            rect.anchoredPosition = posicion;
+        if (rect.sizeDelta != tamano)
+            rect.sizeDelta = tamano;
     }
 }

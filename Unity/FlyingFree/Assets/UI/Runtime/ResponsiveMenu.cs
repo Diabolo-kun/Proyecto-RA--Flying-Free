@@ -15,9 +15,60 @@ namespace FlyingFree.UI
         public bool Landscape { get; private set; }
         Vector2 lastSize;
         Rect lastSafe;
+        int letrasPendientes;
 
-        void OnEnable() { Refresh(true); }
-        void Update() { Refresh(false); }
+        void OnEnable()
+        {
+            Font.textureRebuilt += AlReconstruirFuente;
+            Refresh(true);
+            if (gameObject.scene.IsValid())
+                MenuSeleccionAvion.Asegurar();
+            letrasPendientes = 20;
+            MostrarLetras();
+        }
+
+        void OnDisable()
+        {
+            Font.textureRebuilt -= AlReconstruirFuente;
+        }
+
+        void AlReconstruirFuente(Font fuente)
+        {
+            letrasPendientes = 4;
+        }
+
+        void Update()
+        {
+            Refresh(false);
+            if (letrasPendientes <= 0)
+                return;
+
+            letrasPendientes--;
+            if (gameObject.scene.IsValid())
+                MenuSeleccionAvion.Asegurar();
+            MostrarLetras();
+        }
+
+        void MostrarLetras()
+        {
+            Text[] textos = GetComponentsInChildren<Text>(true);
+            for (int i = 0; i < textos.Length; i++)
+            {
+                Text texto = textos[i];
+                if (texto == null || texto.font == null || string.IsNullOrEmpty(texto.text))
+                    continue;
+                if (texto.canvasRenderer != null)
+                    texto.canvasRenderer.cull = false;
+                texto.font.RequestCharactersInTexture(texto.text, texto.fontSize, texto.fontStyle);
+                texto.SetAllDirty();
+                texto.Rebuild(CanvasUpdate.PreRender);
+            }
+
+#if UNITY_EDITOR
+            if (!Application.isPlaying)
+                UnityEditor.SceneView.RepaintAll();
+#endif
+        }
         public void Refresh(bool force = true)
         {
             if (safeArea == null || scaler == null || Screen.width <= 0 || Screen.height <= 0) return;
