@@ -353,10 +353,9 @@ public class ControlBandada : MonoBehaviour
             return point;
         }
 
-        if (camaraAR == null) camaraAR = Camera.main;
-        if (anclaTransform != null && camaraAR != null)
+        if (anclaTransform != null)
         {
-            return anclaTransform.InverseTransformPoint(camaraAR.transform.position) + new Vector3(0, alturaRespectoCamara, 0);
+            return new Vector3(0f, alturaRespectoCamara, -1.2f);
         }
 
         return Vector3.zero;

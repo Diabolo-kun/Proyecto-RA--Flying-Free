@@ -63,6 +63,8 @@ public class BalloonAnimator : MonoBehaviour
     private Vector3 initialBasePos;
     private Vector3 targetLocalPos;
     private Quaternion initialLocalRot;
+    private Quaternion baseWorldRotation = Quaternion.identity;
+    private Vector3 wallUpDir = Vector3.forward;
     private float chosenHeight = 1.0f;
     private float elapsedTime = 0f;
     private bool isRising = false;
@@ -70,15 +72,16 @@ public class BalloonAnimator : MonoBehaviour
 
     private void Awake()
     {
+        randomPhaseOffset = Random.Range(0f, Mathf.PI * 2f);
         if (alignKnotWithGravity)
         {
             AlignWithGravity();
         }
         else
         {
+            baseWorldRotation = transform.rotation;
             initialLocalRot = transform.localRotation;
         }
-        randomPhaseOffset = Random.Range(0f, Mathf.PI * 2f);
     }
 
     private void Start()
@@ -100,47 +103,40 @@ public class BalloonAnimator : MonoBehaviour
     /// </summary>
     public void AlignWithGravity()
     {
-        if (transform.parent != null)
-        {
-            Vector3 wallNormal = transform.parent.up;
-            Vector3 forwardInRoom = Vector3.ProjectOnPlane(wallNormal, Vector3.up);
-            if (forwardInRoom.sqrMagnitude < 0.001f) forwardInRoom = transform.parent.forward;
-            forwardInRoom.Normalize();
+        Vector3 wallNormalWorld = transform.parent != null ? transform.parent.up : transform.up;
+        Vector3 forwardInRoom = Vector3.ProjectOnPlane(wallNormalWorld, Vector3.up);
+        if (forwardInRoom.sqrMagnitude < 0.001f && transform.parent != null)
+            forwardInRoom = Vector3.ProjectOnPlane(transform.parent.forward, Vector3.up);
+        if (forwardInRoom.sqrMagnitude < 0.001f)
+            forwardInRoom = Vector3.forward;
+        forwardInRoom.Normalize();
 
-            Quaternion worldRot = Quaternion.LookRotation(forwardInRoom, Vector3.up);
-            transform.localRotation = Quaternion.Inverse(transform.parent.rotation) * worldRot;
-        }
-        else
-        {
-            transform.rotation = Quaternion.LookRotation(Vector3.forward, Vector3.up);
-        }
+        baseWorldRotation = Quaternion.LookRotation(forwardInRoom, Vector3.up);
+        transform.rotation = baseWorldRotation;
         initialLocalRot = transform.localRotation;
     }
 
     /// <summary>
-    /// Inicia la animación de subida directamente desde una posición inicial hasta una posición objetivo.
+    /// Inicia la animación de subida directamente desde una posición inicial hasta una posición objetivo
+    /// usando la rotación y dirección del eje de la pared calculados por el Spawner.
     /// </summary>
-    public void StartAnimationToTarget(Vector3 groundPos, Vector3 targetPos)
+    public void StartAnimationToTarget(Vector3 groundPos, Vector3 targetPos, Quaternion desiredWorldRot, Vector3 localUp)
     {
         initialBasePos = groundPos;
         targetLocalPos = targetPos;
-        transform.localPosition = groundPos;
+        baseWorldRotation = desiredWorldRot;
+        wallUpDir = localUp;
 
-        if (alignKnotWithGravity)
-        {
-            AlignWithGravity();
-        }
-        else
-        {
-            initialLocalRot = transform.localRotation;
-        }
+        transform.localPosition = groundPos;
+        transform.rotation = desiredWorldRot;
+        initialLocalRot = transform.localRotation;
 
         elapsedTime = 0f;
         isRising = true;
     }
 
     /// <summary>
-    /// Inicia la animación calculando la altura aleatoria y la posición final.
+    /// Inicia la animación calculando la altura aleatoria y la posición final (fallback).
     /// </summary>
     public void StartAnimation(Vector3 spawnGroundPosition, float customTargetHeight = -1f)
     {
@@ -154,7 +150,6 @@ public class BalloonAnimator : MonoBehaviour
 
         chosenHeight = (customTargetHeight > 0f) ? customTargetHeight : Random.Range(minHeight, maxHeight);
 
-        // Calcular posición final según el eje seleccionado
         Vector3 offset = Vector3.zero;
         switch (movementAxis)
         {
@@ -165,7 +160,6 @@ public class BalloonAnimator : MonoBehaviour
                 offset = new Vector3(0, chosenHeight, 0);
                 break;
             case MovementAxis.World_Y:
-                // Convertido a espacio local del padre
                 Vector3 worldTarget = transform.TransformPoint(Vector3.zero) + Vector3.up * chosenHeight;
                 if (transform.parent != null)
                     targetLocalPos = transform.parent.InverseTransformPoint(worldTarget);
@@ -191,14 +185,15 @@ public class BalloonAnimator : MonoBehaviour
 
             transform.localPosition = Vector3.Lerp(initialBasePos, targetLocalPos, curveValue);
 
-            // Ligera rotación mientras sube
+            // Ligera rotación mientras sube manteniendo el nudo hacia abajo
             float spin = Mathf.Sin(t * Mathf.PI) * 10f;
-            transform.localRotation = initialLocalRot * Quaternion.Euler(0, spin, 0);
+            transform.rotation = baseWorldRotation * Quaternion.Euler(0, spin, 0);
 
             if (t >= 1.0f)
             {
                 isRising = false;
                 transform.localPosition = targetLocalPos;
+                transform.rotation = baseWorldRotation;
             }
         }
         else if (enableIdleFloat)
@@ -209,29 +204,9 @@ public class BalloonAnimator : MonoBehaviour
             float swayX = Mathf.Sin(time * swayFrequency) * swayMaxAngle;
             float swayZ = Mathf.Cos(time * swayFrequency * 0.8f) * swayMaxAngle;
 
-            Vector3 bobVector;
-            if (alignKnotWithGravity && transform.parent != null)
-            {
-                // Bobbing vertical siempre respecto al mundo real
-                bobVector = transform.parent.InverseTransformDirection(Vector3.up * bob);
-            }
-            else
-            {
-                switch (movementAxis)
-                {
-                    case MovementAxis.Local_Z_WallUp:
-                        bobVector = new Vector3(0, 0, bob);
-                        break;
-                    case MovementAxis.Local_Y_Normal:
-                    case MovementAxis.World_Y:
-                    default:
-                        bobVector = new Vector3(0, bob, 0);
-                        break;
-                }
-            }
-
+            Vector3 bobVector = wallUpDir * bob;
             transform.localPosition = targetLocalPos + bobVector;
-            transform.localRotation = initialLocalRot * Quaternion.Euler(swayX, 0, swayZ);
+            transform.rotation = baseWorldRotation * Quaternion.Euler(swayX, 0, swayZ);
         }
     }
 
@@ -240,22 +215,21 @@ public class BalloonAnimator : MonoBehaviour
     /// </summary>
     private void ApplyRandomColor()
     {
-        Renderer[] renderers = GetComponentsInChildren<Renderer>();
+        // Solo aplicar a los renderers activos del globo (Globo_Globo_Intacto), no a los trozos
+        Renderer[] renderers = GetComponentsInChildren<Renderer>(false);
         if (renderers == null || renderers.Length == 0) return;
 
         Color randomColor = Color.HSVToRGB(Random.Range(0f, 1f), Random.Range(0.7f, 0.95f), Random.Range(0.85f, 1f));
 
         foreach (Renderer rend in renderers)
         {
-            // Instanciar material para no alterar el asset original compartido
+            if (rend.gameObject.name.StartsWith("Globo_Trozo_")) continue;
+
             Material mat = rend.material;
-            if (mat.HasProperty("_BaseColor"))
+            if (mat != null)
             {
-                mat.SetColor("_BaseColor", randomColor);
-            }
-            else if (mat.HasProperty("_Color"))
-            {
-                mat.SetColor("_Color", randomColor);
+                if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", randomColor);
+                else if (mat.HasProperty("_Color")) mat.SetColor("_Color", randomColor);
             }
         }
     }

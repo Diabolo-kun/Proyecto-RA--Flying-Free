@@ -49,6 +49,7 @@ public class ARGameSpace : MonoBehaviour
     // Estado interno
     private bool isCurrentlyTracked = false;
     private bool hasEverBeenTracked = false;
+    private bool hasInitializedFallback = false;
     private Vector3 lastTrackedPosition = Vector3.zero;
     private Quaternion lastTrackedRotation = Quaternion.identity;
 
@@ -179,7 +180,7 @@ public class ARGameSpace : MonoBehaviour
         Vector3 desiredPosition;
         Quaternion desiredRotation;
 
-        if (targetMarker != null && (isCurrentlyTracked || hasEverBeenTracked || Application.isEditor))
+        if (targetMarker != null && isCurrentlyTracked)
         {
             desiredPosition = targetMarker.position;
 
@@ -193,7 +194,6 @@ public class ARGameSpace : MonoBehaviour
                 Vector3 forwardHorizontal = Vector3.ProjectOnPlane(intoWall, Vector3.up);
                 if (forwardHorizontal.sqrMagnitude < 0.001f)
                 {
-                    // Si el target estuviese horizontal en una mesa:
                     forwardHorizontal = Vector3.ProjectOnPlane(targetMarker.forward, Vector3.up);
                 }
                 if (forwardHorizontal.sqrMagnitude < 0.001f)
@@ -220,12 +220,25 @@ public class ARGameSpace : MonoBehaviour
         }
         else if (fallbackInFrontOfCamera && camaraAR != null)
         {
-            // Modo simulación: posicionar a distancia frente a la cámara
-            Vector3 camFwd = Vector3.ProjectOnPlane(camaraAR.transform.forward, Vector3.up).normalized;
-            if (camFwd.sqrMagnitude < 0.001f) camFwd = Vector3.forward;
+            // Modo simulación: posicionar a distancia frente a la cámara UNA SOLA VEZ
+            // para que quede anclado en el espacio del mundo y NO rote con la cámara.
+            if (!hasInitializedFallback)
+            {
+                Vector3 camFwd = Vector3.ProjectOnPlane(camaraAR.transform.forward, Vector3.up).normalized;
+                if (camFwd.sqrMagnitude < 0.001f) camFwd = Vector3.forward;
 
-            desiredPosition = camaraAR.transform.position + (camFwd * fallbackDistance);
-            desiredRotation = Quaternion.LookRotation(camFwd, Vector3.up);
+                desiredPosition = camaraAR.transform.position + (camFwd * fallbackDistance);
+                desiredRotation = Quaternion.LookRotation(camFwd, Vector3.up);
+
+                lastTrackedPosition = desiredPosition;
+                lastTrackedRotation = desiredRotation;
+                hasInitializedFallback = true;
+            }
+            else
+            {
+                desiredPosition = lastTrackedPosition;
+                desiredRotation = lastTrackedRotation;
+            }
         }
         else
         {
@@ -249,22 +262,15 @@ public class ARGameSpace : MonoBehaviour
     }
 
     /// <summary>
-    /// Calcula el punto medio del pasillo de juego entre la cámara y la marca, expresado en coordenadas locales de GameSpace.
-    /// normalizedDistance: 0.0 = en la marca (pared), 1.0 = en la cámara del jugador, 0.5 = justo a medio camino.
+    /// Calcula el punto del pasillo de juego frente a la pared, expresado en coordenadas locales de GameSpace.
+    /// normalizedDistance: 0.0 = en la marca (pared), 1.0 = distancia completa del pasillo (hacia el jugador).
     /// </summary>
     public Vector3 GetCorridorPointLocal(float normalizedDistance = 0.5f)
     {
-        if (camaraAR == null) camaraAR = Camera.main;
-        if (camaraAR == null) return new Vector3(0f, 0f, -1.2f);
-
-        Vector3 camLocal = transform.InverseTransformPoint(camaraAR.transform.position);
-
-        // La pared está en Z = 0 local. La cámara suele estar en Z < 0.
-        float z = Mathf.Lerp(0f, camLocal.z, normalizedDistance);
-        float y = Mathf.Lerp(0f, camLocal.y, normalizedDistance);
-        float x = Mathf.Lerp(0f, camLocal.x, normalizedDistance);
-
-        return new Vector3(x, y, z);
+        // La pared está en Z = 0 local. El jugador/habitación está en Z < 0 local.
+        // Un punto a medio camino en el pasillo es Z negativo fijo (ej. -1.2m frente a la pared).
+        float distZ = -Mathf.Max(0.6f, fallbackDistance * normalizedDistance);
+        return new Vector3(0f, 0f, distZ);
     }
 
     /// <summary>

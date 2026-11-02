@@ -204,17 +204,19 @@ public class TargetPlaneSpawner : MonoBehaviour
 
     private void HandleTargetStatusChanged(ObserverBehaviour behaviour, TargetStatus targetStatus)
     {
-        if (testModeWithoutVuforia) return;
-
         bool tracked = targetStatus.Status == Status.TRACKED ||
                        (!onlyWhenTracked && (targetStatus.Status == Status.EXTENDED_TRACKED ||
                                              targetStatus.Status == Status.LIMITED));
 
-        if (tracked && !isCurrentlyTracked)
+        if (tracked)
         {
-            OnTargetFound();
+            testModeWithoutVuforia = false;
+            if (!isCurrentlyTracked)
+            {
+                OnTargetFound();
+            }
         }
-        else if (!tracked && isCurrentlyTracked)
+        else if (!tracked && isCurrentlyTracked && !testModeWithoutVuforia)
         {
             OnTargetLost();
         }
@@ -229,7 +231,18 @@ public class TargetPlaneSpawner : MonoBehaviour
             planeVisualObject.SetActive(true);
 
         if (spawnedObjectsContainer != null)
+        {
             spawnedObjectsContainer.SetActive(true);
+
+            // Re-habilitar los renderers principales por si fueron deshabilitados por DefaultObserverEventHandler
+            foreach (Renderer r in spawnedObjectsContainer.GetComponentsInChildren<Renderer>(true))
+            {
+                if (!r.gameObject.name.StartsWith("Globo_Trozo_"))
+                {
+                    r.enabled = true;
+                }
+            }
+        }
 
         if (autoSpawnOnTracking)
         {
@@ -333,43 +346,61 @@ public class TargetPlaneSpawner : MonoBehaviour
     /// </summary>
     private GameObject SpawnPrefabAt(Vector3 targetPoint, float floorLevel)
     {
-        // 1. Calcular la orientación para que el nudo (-Y) mire siempre hacia el suelo real
-        Quaternion spawnRotation = Quaternion.identity;
-        Vector3 localWallUp = Vector3.forward;
+        EnsureContainers();
 
-        if (nudoHaciaAbajoGravedad)
+        // 1. Orientación del globo con nudo hacia abajo (gravedad real):
+        // En Vuforia, la normal que sale del plano del ImageTarget es transform.up (+Y).
+        Vector3 wallNormalWorld = transform.up;
+        Vector3 forwardInRoom = Vector3.ProjectOnPlane(wallNormalWorld, Vector3.up);
+        if (forwardInRoom.sqrMagnitude < 0.001f)
         {
-            // Vector normal que sale de la pared hacia la habitación
-            Vector3 wallNormal = transform.up;
-            Vector3 forwardInRoom = Vector3.ProjectOnPlane(wallNormal, Vector3.up);
-            if (forwardInRoom.sqrMagnitude < 0.001f) forwardInRoom = transform.forward;
-            forwardInRoom.Normalize();
+            forwardInRoom = Vector3.ProjectOnPlane(transform.forward, Vector3.up);
+        }
+        if (forwardInRoom.sqrMagnitude < 0.001f)
+        {
+            forwardInRoom = Vector3.forward;
+        }
+        forwardInRoom.Normalize();
 
-            // Rotación donde +Y es el cielo (Vector3.up), por lo que -Y (el nudo) mira hacia el suelo
-            Quaternion worldRot = Quaternion.LookRotation(forwardInRoom, Vector3.up);
-            spawnRotation = Quaternion.Inverse(spawnedObjectsContainer.transform.rotation) * worldRot;
+        // Rotación en el mundo donde:
+        // +Y mira hacia el techo (Vector3.up), por tanto el nudo (-Y) mira hacia el suelo
+        // +Z mira hacia la habitación (saliendo de la pared)
+        Quaternion balloonWorldRot = Quaternion.LookRotation(forwardInRoom, Vector3.up);
 
-            // Dirección 'Arriba' en la pared para la subida
-            Vector3 worldWallUp = Vector3.ProjectOnPlane(Vector3.up, wallNormal).normalized;
-            if (worldWallUp.sqrMagnitude < 0.001f) worldWallUp = Vector3.up;
-            localWallUp = transform.InverseTransformDirection(worldWallUp).normalized;
+        // Vector local en el plano del target que apunta hacia arriba en el mundo
+        Vector3 localWallUp = transform.InverseTransformDirection(Vector3.up);
+        localWallUp.y = 0f; // nos mantenemos en el plano X-Z de la pared
+        if (localWallUp.sqrMagnitude < 0.001f)
+        {
+            localWallUp = Vector3.forward;
+        }
+        else
+        {
+            localWallUp.Normalize();
         }
 
         GameObject newObj = null;
-
         if (prefabToSpawn != null)
         {
             newObj = Instantiate(prefabToSpawn, spawnedObjectsContainer.transform);
         }
         else
         {
-            // Fallback: crea un globo estético procedural con esfera y nudo
             newObj = CreateFallbackBalloonObject();
             newObj.transform.SetParent(spawnedObjectsContainer.transform, false);
         }
 
-        newObj.transform.localRotation = spawnRotation;
         newObj.name = $"Globo_{spawnedInstances.Count + 1}";
+        newObj.transform.rotation = balloonWorldRot;
+
+        // Asegurar que los renderers principales estén visibles
+        foreach (Renderer r in newObj.GetComponentsInChildren<Renderer>(true))
+        {
+            if (!r.gameObject.name.StartsWith("Globo_Trozo_"))
+            {
+                r.enabled = true;
+            }
+        }
 
         // Asegurar componente GloboTarget para puntuación y explosión al impactar el avión
         if (newObj.GetComponent<GloboTarget>() == null)
@@ -389,28 +420,13 @@ public class TargetPlaneSpawner : MonoBehaviour
             balloonCol.isTrigger = true;
         }
 
-        // Calcular posición inicial desde el suelo
-        Vector3 groundSpawnPos = targetPoint;
-        if (nudoHaciaAbajoGravedad)
-        {
-            float riseHeight = Random.Range(minRiseHeight, maxRiseHeight);
-            groundSpawnPos = targetPoint - (localWallUp * riseHeight);
-        }
-        else
-        {
-            switch (riseAxis)
-            {
-                case BalloonAnimator.MovementAxis.Local_Z_WallUp:
-                    groundSpawnPos.z = floorLevel;
-                    break;
-                case BalloonAnimator.MovementAxis.Local_Y_Normal:
-                    groundSpawnPos.y = floorLevel;
-                    break;
-                case BalloonAnimator.MovementAxis.World_Y:
-                    groundSpawnPos = targetPoint;
-                    break;
-            }
-        }
+        // Asegurar que el punto en la pared esté en la superficie del target (y = 0.03m levemente separado)
+        targetPoint.y = 0.03f;
+
+        // Posición de inicio de subida desde abajo en la pared
+        float riseDist = Random.Range(minRiseHeight, maxRiseHeight);
+        Vector3 groundSpawnPos = targetPoint - (localWallUp * riseDist);
+        groundSpawnPos.y = 0.03f;
 
         if (applyRiseAnimation && Application.isPlaying)
         {
@@ -428,7 +444,7 @@ public class TargetPlaneSpawner : MonoBehaviour
             animator.maxHeight = maxRiseHeight;
             animator.riseDuration = riseDuration;
 
-            animator.StartAnimationToTarget(groundSpawnPos, targetPoint);
+            animator.StartAnimationToTarget(groundSpawnPos, targetPoint, balloonWorldRot, localWallUp);
         }
         else
         {
