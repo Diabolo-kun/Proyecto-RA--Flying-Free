@@ -183,7 +183,7 @@ MonoBehaviour:
   planePrefab: {fileID: 1250615762258731603, guid: a59ee53fda370f04b94bc73f27d240c8, type: 3}
   spawnViewport: {x: 0.5, y: 0.15}
   spawnDistance: 1.5
-  aimAtTouch: 1
+  aimAtTouch: 0
   aimDistance: 20
   arReference: {fileID: 1828078737}
   scaleWithReference: 1
@@ -556,7 +556,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 10913, guid: 0000000000000000f000000000000000, type: 0}
+  m_Sprite: {fileID: 21300000, guid: 8380513a1ebf62845a43d711f97aea9b, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -761,7 +761,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 100, y: 100}
+  m_SizeDelta: {x: 356, y: 356}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1194988543
 MonoBehaviour:
@@ -776,14 +776,14 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 0.2830189, g: 0.2830189, b: 0.2830189, a: 0.3137255}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 10913, guid: 0000000000000000f000000000000000, type: 0}
+  m_Sprite: {fileID: 21300000, guid: 77867d1784430b44baf05001d17cde17, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -832,7 +832,7 @@ Transform:
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
+  m_ConstrainProportionsScale: 1
   m_Children:
   - {fileID: 171365800}
   m_Father: {fileID: 369610905}
@@ -940,13 +940,13 @@ MonoBehaviour:
   PreviewVisible: 1
   RuntimeOcclusion: 0
   RuntimeCollider: 0
-  mTrackableName: aspicas
+  mTrackableName: target_logo
   mInitializedInEditor: 1
-  mDataSetPath: Vuforia/Base.xml
-  mAspectRatio: 1.428173
+  mDataSetPath: Vuforia/TargetManagerBBDD.xml
+  mAspectRatio: 1
   mImageTargetType: 0
-  mWidth: 1
-  mHeight: 1.428173
+  mWidth: 0.1
+  mHeight: 0.1
   mRuntimeTexture: {fileID: 0}
   mMotionHint: 1
   mTrackingOptimization: 0
@@ -966,8 +966,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Vuforia.Unity.Engine.dll::Vuforia.ImageTargetPreview
   mObserverBehaviour: {fileID: 1828078741}
   mHiddenRoot: {fileID: 0}
-  mTargetName: aspicas
-  mDatasetName: Vuforia/Base.xml
+  mTargetName: target_logo
+  mDatasetName: Vuforia/TargetManagerBBDD.xml
   mCastedBehaviour: {fileID: 1828078741}
   mMeshFilter: {fileID: 0}
   mMeshRenderer: {fileID: 0}
