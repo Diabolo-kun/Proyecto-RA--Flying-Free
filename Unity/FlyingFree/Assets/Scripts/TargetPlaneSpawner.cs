@@ -341,6 +341,24 @@ public class TargetPlaneSpawner : MonoBehaviour
 
         newObj.name = $"Globo_{spawnedInstances.Count + 1}";
 
+        // Asegurar componente GloboTarget para puntuación y explosión al impactar el avión
+        if (newObj.GetComponent<GloboTarget>() == null)
+        {
+            newObj.AddComponent<GloboTarget>();
+        }
+
+        Collider balloonCol = newObj.GetComponent<Collider>();
+        if (balloonCol == null)
+        {
+            SphereCollider sc = newObj.AddComponent<SphereCollider>();
+            sc.isTrigger = true;
+            sc.radius = 0.25f;
+        }
+        else
+        {
+            balloonCol.isTrigger = true;
+        }
+
         // Calcular posición inicial desde el suelo
         Vector3 groundSpawnPos = targetPoint;
         switch (riseAxis)

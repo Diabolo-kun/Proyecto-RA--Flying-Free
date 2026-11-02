@@ -10,6 +10,8 @@ GameObject:
   m_Component:
   - component: {fileID: 8080172018061234934}
   - component: {fileID: 1084321606366418153}
+  - component: {fileID: 7134403176951521482}
+  - component: {fileID: 2214663523591759493}
   m_Layer: 0
   m_Name: Pajaro_FlyingFree
   m_TagString: Untagged
@@ -50,6 +52,43 @@ MonoBehaviour:
   grabAtSeconds: 1.6
   captureDuration: 4
   carrySpeed: 0.8
+--- !u!65 &7134403176951521482
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9081416281889351582}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.45, y: 0.45, z: 0.45}
+  m_Center: {x: 0, y: 0, z: 0}
+--- !u!114 &2214663523591759493
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9081416281889351582}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4c636f913a3ac6b448ce9cc704da3eec, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PajaroInteraccion
+  beakSocket: {fileID: 3021141148682645606}
+  animator: {fileID: 792319575871574307}
+  captureAnimState: Capture
+  carryFlySpeed: 2.5
 --- !u!1001 &6599031145875729586
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -142,6 +181,11 @@ PrefabInstance:
 --- !u!95 &792319575871574307 stripped
 Animator:
   m_CorrespondingSourceObject: {fileID: 5866666021909216657, guid: 14d184a137ab47942bddc7b09c6c154e, type: 3}
+  m_PrefabInstance: {fileID: 6599031145875729586}
+  m_PrefabAsset: {fileID: 0}
+--- !u!4 &3021141148682645606 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -974668666222011180, guid: 14d184a137ab47942bddc7b09c6c154e, type: 3}
   m_PrefabInstance: {fileID: 6599031145875729586}
   m_PrefabAsset: {fileID: 0}
 --- !u!4 &6519208868945945434 stripped

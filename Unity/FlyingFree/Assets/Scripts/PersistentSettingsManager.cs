@@ -30,8 +30,10 @@ namespace FlyingFree
         [Tooltip("Si se asigna un Canvas o panel de ajustes, se conservará en todas las escenas para poder abrirlo como menú de pausa")]
         [SerializeField] private GameObject settingsOverlayPanel;
 
+#pragma warning disable CS0414
         [Tooltip("Tecla rápida para abrir/cerrar ajustes en cualquier escena (Escape o botón Atrás en Android)")]
         [SerializeField] private KeyCode toggleSettingsKey = KeyCode.Escape;
+#pragma warning restore CS0414
 
         // Eventos para que cualquier script de cualquier escena se entere de los cambios
         public static event Action<float> OnSoundVolumeChanged;

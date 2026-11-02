@@ -25,8 +25,9 @@ namespace FlyingFree.Sprint2.Editor
             if(Type.GetType("Vuforia.VuforiaBehaviour, Vuforia.Unity.Engine")==null){Debug.LogError("Instala Vuforia Engine en este proyecto antes de activar el adaptador.");return;}
             foreach(var group in new[]{BuildTargetGroup.Standalone,BuildTargetGroup.Android,BuildTargetGroup.iOS})
             {
-                string defs=PlayerSettings.GetScriptingDefineSymbolsForGroup(group);
-                if(!defs.Split(';').Contains("FLYINGFREE_VUFORIA"))PlayerSettings.SetScriptingDefineSymbolsForGroup(group,defs+";FLYINGFREE_VUFORIA");
+                var target = UnityEditor.Build.NamedBuildTarget.FromBuildTargetGroup(group);
+                string defs = PlayerSettings.GetScriptingDefineSymbols(target);
+                if(!defs.Split(';').Contains("FLYINGFREE_VUFORIA")) PlayerSettings.SetScriptingDefineSymbols(target, defs + ";FLYINGFREE_VUFORIA");
             }
         }
         public static void Build()

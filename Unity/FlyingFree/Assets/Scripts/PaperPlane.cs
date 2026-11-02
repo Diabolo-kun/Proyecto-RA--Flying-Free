@@ -19,7 +19,7 @@ using UnityEngine;
 public class PaperPlane : MonoBehaviour
 {
     [Header("Vuelo (unidades locales de la referencia por segundo)")]
-    [SerializeField] private float forwardSpeed = 6f;
+    [SerializeField] public float forwardSpeed = 6f;
     [SerializeField] private float turnSpeed = 80f;        // grados por segundo
     [SerializeField] private float inputSmoothing = 8f;    // más alto = responde más rápido
     [SerializeField] private float maxPitch = 60f;         // límite de cabeceo (grados)
@@ -30,8 +30,12 @@ public class PaperPlane : MonoBehaviour
     [SerializeField] private Transform visual;
     [SerializeField] private float maxBankAngle = 35f;
 
-    [Header("Final")]
+    [Header("Final y Efectos")]
     [SerializeField] private float destroyDelay = 1.5f;
+    [Tooltip("Prefab de explosión de choque (ej. Explosion_Choque)")]
+    [SerializeField] public GameObject explosionPrefab;
+
+    public bool IsCaptured { get; private set; }
 
     /// <summary>Se dispara una vez: true = tocó el objetivo, false = chocó o se acabó el tiempo.</summary>
     public event Action<bool> OnFinished;
@@ -56,6 +60,23 @@ public class PaperPlane : MonoBehaviour
         rb.useGravity = false;
         // El movimiento se hace por Transform en LateUpdate, no por física
         rb.interpolation = RigidbodyInterpolation.None;
+
+        // Asegurar collider calibrado en la punta del avión
+        Collider col = GetComponent<Collider>();
+        if (col == null)
+        {
+            SphereCollider sc = gameObject.AddComponent<SphereCollider>();
+            sc.isTrigger = true;
+            sc.radius = 0.08f;
+            sc.center = new Vector3(0f, 0f, 0.12f);
+        }
+
+#if UNITY_EDITOR
+        if (explosionPrefab == null)
+        {
+            explosionPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Explosion_Choque.prefab");
+        }
+#endif
 
         // Los colliders del avión son trigger para detectar contacto con paredes
         // y objetivos sin que la física empuje al avión.
@@ -125,6 +146,8 @@ public class PaperPlane : MonoBehaviour
             }
         }
 
+        if (IsCaptured) return;
+
         // Se aplica siempre (también tras terminar) para que el avión siga anclado al target
         ApplyPose();
 
@@ -135,6 +158,8 @@ public class PaperPlane : MonoBehaviour
 
     private void ApplyPose()
     {
+        if (IsCaptured) return;
+
         Quaternion worldRot = ReferenceRotation * Quaternion.Euler(pitch, yaw, 0f);
         Vector3 worldPos = reference != null
             ? reference.TransformPoint(localPosition)
@@ -145,9 +170,25 @@ public class PaperPlane : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        if (finished) return;
+        if (finished || IsCaptured) return;
 
-        // ¿Es un objetivo?
+        // 1. ¿Es un globo?
+        GloboTarget globo = other.GetComponentInParent<GloboTarget>();
+        if (globo != null)
+        {
+            globo.PopBalloon(this);
+            return;
+        }
+
+        // 2. ¿Es un pájaro?
+        PajaroInteraccion pajaro = other.GetComponentInParent<PajaroInteraccion>();
+        if (pajaro != null)
+        {
+            pajaro.HandlePlaneCollision(this);
+            return;
+        }
+
+        // 3. ¿Es un objetivo clásico?
         PlaneTarget target = other.GetComponentInParent<PlaneTarget>();
         if (target != null)
         {
@@ -156,10 +197,101 @@ public class PaperPlane : MonoBehaviour
             return;
         }
 
-        // Cualquier otro collider sólido (pared, suelo...) = choque.
-        // Los triggers ajenos (zonas invisibles, etc.) se ignoran.
+        // Cualquier otro collider sólido (pared, suelo...) = choque con explosión
         if (!other.isTrigger)
-            Finish(false);
+        {
+            ExplodeInAir();
+        }
+    }
+
+    /// <summary>
+    /// El pájaro ha atrapado el avión con el pico y se lo lleva volando.
+    /// </summary>
+    public void CaptureByBird(Transform birdBeak)
+    {
+        if (finished || IsCaptured) return;
+        IsCaptured = true;
+        finished = true;
+        steerInput = Vector2.zero;
+
+        // Desactivar físicas
+        if (rb != null) rb.isKinematic = true;
+
+        // Emparentar al pico del pájaro
+        transform.SetParent(birdBeak, false);
+        transform.localPosition = Vector3.zero;
+        transform.localRotation = Quaternion.identity;
+
+        OnFinished?.Invoke(false);
+        Destroy(gameObject, 6f);
+    }
+
+    /// <summary>
+    /// El avión choca contra un pájaro u obstáculo y explota en pedazos.
+    /// </summary>
+    public void ExplodeInAir(Vector3? customImpactPos = null)
+    {
+        if (finished || IsCaptured) return;
+        finished = true;
+        steerInput = Vector2.zero;
+
+        Vector3 spawnPos = customImpactPos.HasValue ? customImpactPos.Value : transform.position;
+
+        // Instanciar la animación de choque / explosión
+        if (explosionPrefab != null)
+        {
+            GameObject exp = Instantiate(explosionPrefab, spawnPos, Quaternion.identity);
+
+            // Asegurar que Origen_Modelo compense la altura horneada de Maya (-1.52f)
+            Transform origen = exp.transform.Find("Origen_Modelo");
+            if (origen != null && Mathf.Abs(origen.localPosition.y) < 0.1f)
+            {
+                origen.localPosition = new Vector3(origen.localPosition.x, -1.52f, origen.localPosition.z);
+            }
+
+            Animator anim = exp.GetComponentInChildren<Animator>();
+            if (anim == null)
+            {
+                anim = exp.AddComponent<Animator>();
+            }
+
+#if UNITY_EDITOR
+            if (anim.runtimeAnimatorController == null)
+            {
+                anim.runtimeAnimatorController = UnityEditor.AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>("Assets/Controllers/Explosion_Choque.controller");
+            }
+#endif
+            if (anim != null && anim.runtimeAnimatorController != null)
+            {
+                anim.Play("Explosion_Choque_Completa", 0, 0f);
+            }
+
+            Destroy(exp, 1.8f);
+        }
+
+        // Ocultar modelo visual inmediatamente
+        if (visual != null) visual.gameObject.SetActive(false);
+        foreach (var r in GetComponentsInChildren<Renderer>()) r.enabled = false;
+
+        OnFinished?.Invoke(false);
+        Destroy(gameObject, 0.5f);
+    }
+
+    /// <summary>
+    /// Al tocar un globo, el globo estalla y el avión desaparece.
+    /// </summary>
+    public void OnHitBalloon()
+    {
+        if (finished || IsCaptured) return;
+        finished = true;
+        steerInput = Vector2.zero;
+
+        // Ocultar modelo visual del avión
+        if (visual != null) visual.gameObject.SetActive(false);
+        foreach (var r in GetComponentsInChildren<Renderer>()) r.enabled = false;
+
+        OnFinished?.Invoke(true);
+        Destroy(gameObject, 0.2f);
     }
 
     private void Finish(bool hitTarget)

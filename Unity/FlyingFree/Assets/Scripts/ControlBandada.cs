@@ -271,6 +271,23 @@ public class ControlBandada : MonoBehaviour
             if (vuelo == null)
                 vuelo = objeto.AddComponent<PajaroOrbital>();
 
+            // Asegurar componente de interacción de choque / captura
+            PajaroInteraccion interaccion = objeto.GetComponent<PajaroInteraccion>();
+            if (interaccion == null)
+                interaccion = objeto.AddComponent<PajaroInteraccion>();
+
+            // Asegurar collider trigger calibrado en el pájaro para detectar colisión con el avión
+            SphereCollider sc = objeto.GetComponent<SphereCollider>();
+            if (sc == null)
+            {
+                BoxCollider bc = objeto.GetComponent<BoxCollider>();
+                if (bc != null) Destroy(bc);
+                sc = objeto.AddComponent<SphereCollider>();
+            }
+            sc.isTrigger = true;
+            sc.radius = 0.22f;
+            sc.center = Vector3.zero;
+
             vuelo.ConfigurarVariaciones(
                 variacionVelocidad,
                 frecuenciaCambioVelocidad,

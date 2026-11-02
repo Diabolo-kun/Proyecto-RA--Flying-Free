@@ -304,6 +304,7 @@ MonoBehaviour:
   visual: {fileID: 0}
   maxBankAngle: 35
   destroyDelay: 1.5
+  explosionPrefab: {fileID: 8209733727168254803, guid: 3ee756792cbea3449a94120b17ebe1f9, type: 3}
 --- !u!1 &8002123327113594803
 GameObject:
   m_ObjectHideFlags: 0
