@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<QCARConfig>
+  <Tracking>
+    <ImageTarget name="target_pajaro" size="0.100000 0.100000" />
+    <ImageTarget name="target_logo" size="0.100000 0.100000" />
+    <ImageTarget name="target_avion" size="0.100000 0.100000" />
+    <ImageTarget name="target_globo" size="0.100000 0.100000" />
+  </Tracking>
+</QCARConfig>
