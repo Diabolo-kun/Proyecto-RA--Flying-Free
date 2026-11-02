@@ -68,9 +68,20 @@ namespace FlyingFree
         private void Update()
         {
             // Permite abrir el panel de configuración en cualquier escena con la tecla Escape
-            if (Input.GetKeyDown(toggleSettingsKey) && settingsOverlayPanel != null)
+            if (settingsOverlayPanel != null)
             {
-                ToggleSettingsOverlay();
+#if ENABLE_INPUT_SYSTEM
+                if (UnityEngine.InputSystem.Keyboard.current != null &&
+                    UnityEngine.InputSystem.Keyboard.current.escapeKey.wasPressedThisFrame)
+                {
+                    ToggleSettingsOverlay();
+                }
+#elif ENABLE_LEGACY_INPUT_MANAGER
+                if (Input.GetKeyDown(toggleSettingsKey))
+                {
+                    ToggleSettingsOverlay();
+                }
+#endif
             }
         }
 
