@@ -9,6 +9,7 @@ namespace FlyingFree.UI
         public RectTransform safeArea, brand, plane, menuCard, footer, settingsCard;
         public CanvasScaler scaler;
         public MenuBackground background;
+        public RectTransform trailerButton;
         [Tooltip("Editor QA only. Zero uses Screen.safeArea.")]
         public Rect simulatedSafeArea;
         public bool Landscape { get; private set; }
@@ -47,7 +48,16 @@ namespace FlyingFree.UI
             Canvas.ForceUpdateCanvases();
             Vector2 area = safe.size / canvasScale;
             if (area.x <= 0 || area.y <= 0) return;
-            if (Landscape)
+            if (trailerButton != null)
+            {
+                float logoFraction = Landscape ? .34f : .42f;
+                float controlsFraction = Landscape ? .58f : .39f;
+                float logoScale = Mathf.Min((area.x-110)/800, area.y*logoFraction/800);
+                float controlsScale = Mathf.Min((area.x-140)/800, area.y*controlsFraction/680);
+                Place(brand,new Vector2(.5f,Landscape?.80f:.74f),new Vector2(800,800),logoScale);
+                Place(menuCard,new Vector2(.5f,Landscape?.326f:.285f),new Vector2(800,680),controlsScale);
+            }
+            else if (Landscape)
             {
                 float logoScale = Mathf.Min((area.x - 160) / 520, area.y * .50f / 520);
                 Place(brand, new Vector2(.5f,.748f), new Vector2(520,520), logoScale);
