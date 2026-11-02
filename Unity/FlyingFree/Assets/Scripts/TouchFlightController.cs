@@ -20,6 +20,8 @@ public class TouchFlightController : MonoBehaviour
     [SerializeField] private Camera cam;
     [Tooltip("Prefab del avión. El script PaperPlane debe estar en el objeto RAÍZ del prefab.")]
     [SerializeField] private GameObject planePrefab;
+    [Tooltip("Modelos que se pueden elegir en la escena de la marca. Si no hay elección, se usa Cuaderno.")]
+    [SerializeField] private GameObject[] avionesElegibles;
     [Tooltip("Posición de salida en viewport (0-1). (0.5, 0.15) = abajo al centro.")]
     [SerializeField] private Vector2 spawnViewport = new Vector2(0.5f, 0.15f);
     [SerializeField] private float spawnDistance = 1.5f;
@@ -127,14 +129,17 @@ public class TouchFlightController : MonoBehaviour
     {
         EnsureGameSpaceReference();
 
-        // Si no está asignado directamente, obtener del PlaneSkinManager
-        if (planePrefab == null && PlaneSkinManager.Instance != null)
+        GameObject origen = AvionElegido();
+        if (origen == null)
+            origen = planePrefab;
+
+        if (origen == null && PlaneSkinManager.Instance != null)
         {
             PaperPlane active = PlaneSkinManager.Instance.GetActivePrefab();
-            if (active != null) planePrefab = active.gameObject;
+            if (active != null) origen = active.gameObject;
         }
 
-        if (planePrefab == null)
+        if (origen == null)
         {
             Debug.LogError("[TouchFlightController] 'Plane Prefab' está vacío. Asigna el prefab del avión.", this);
             return false;
@@ -158,12 +163,12 @@ public class TouchFlightController : MonoBehaviour
         // Sin parent: así no se oculta si Vuforia pierde el target.
         // Se instancia como GameObject y se busca el componente después, en lugar de
         // Instantiate<PaperPlane>, para evitar el InvalidCastException de las builds.
-        GameObject planeObject = Instantiate(planePrefab, spawnPos, Quaternion.LookRotation(dir));
+        GameObject planeObject = Instantiate(origen, spawnPos, Quaternion.LookRotation(dir));
 
-        PaperPlane plane = planeObject.GetComponent<PaperPlane>();
+        PaperPlane plane = PrepararAvion(planeObject);
         if (plane == null)
         {
-            Debug.LogError("[TouchFlightController] El prefab asignado no tiene el script PaperPlane en el objeto raíz.", planePrefab);
+            Debug.LogError("[TouchFlightController] El prefab asignado no tiene el script PaperPlane en el objeto raíz.", origen);
             Destroy(planeObject);
             return false;
         }
@@ -173,6 +178,61 @@ public class TouchFlightController : MonoBehaviour
         plane.OnFinished += HandlePlaneFinished;
         currentPlane = plane;
         return true;
+    }
+
+    GameObject AvionElegido()
+    {
+        const string defecto = "Avion_Cuaderno";
+        string nombre = PlayerPrefs.GetString("FlyingFree.AvionSeleccionado", "");
+        if (string.IsNullOrEmpty(nombre))
+            nombre = defecto;
+
+        GameObject elegido = BuscarAvion(nombre);
+        if (elegido != null)
+            return elegido;
+
+        return BuscarAvion(defecto);
+    }
+
+    GameObject BuscarAvion(string nombre)
+    {
+        if (avionesElegibles == null || string.IsNullOrEmpty(nombre))
+            return null;
+
+        for (int i = 0; i < avionesElegibles.Length; i++)
+        {
+            if (avionesElegibles[i] != null && avionesElegibles[i].name == nombre)
+                return avionesElegibles[i];
+        }
+
+        return null;
+    }
+
+    static PaperPlane PrepararAvion(GameObject planeObject)
+    {
+        var motor = planeObject.GetComponent<FlyingFree.Sprint2.PaperPlaneMotor>();
+        Transform modelo = motor != null ? motor.visual : null;
+        if (motor != null)
+        {
+            motor.enabled = false;
+            Destroy(motor);
+        }
+
+        if (modelo == null)
+        {
+            Transform hijo = planeObject.transform.Find("Visual");
+            if (hijo != null)
+                modelo = hijo;
+        }
+
+        PaperPlane plane = planeObject.GetComponent<PaperPlane>();
+        if (plane == null)
+            plane = planeObject.AddComponent<PaperPlane>();
+
+        if (modelo != null)
+            plane.SetVisual(modelo);
+
+        return plane;
     }
 
     private void HandlePlaneFinished(bool hitTarget)

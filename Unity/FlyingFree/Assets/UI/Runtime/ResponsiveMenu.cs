@@ -53,9 +53,9 @@ namespace FlyingFree.UI
                 float logoFraction = Landscape ? .34f : .42f;
                 float controlsFraction = Landscape ? .58f : .39f;
                 float logoScale = Mathf.Min((area.x-110)/800, area.y*logoFraction/800);
-                float controlsScale = Mathf.Min((area.x-140)/800, area.y*controlsFraction/680);
+                float controlsScale = Mathf.Min((area.x-140)/800, area.y*controlsFraction/860);
                 Place(brand,new Vector2(.5f,Landscape?.80f:.74f),new Vector2(800,800),logoScale);
-                Place(menuCard,new Vector2(.5f,Landscape?.326f:.285f),new Vector2(800,680),controlsScale);
+                Place(menuCard,new Vector2(.5f,Landscape?.326f:.285f),new Vector2(800,860),controlsScale);
             }
             else if (Landscape)
             {

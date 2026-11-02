@@ -115,6 +115,13 @@ public class PaperPlane : MonoBehaviour
         ApplyPose();
     }
 
+    /// <summary>Modelo visible del avión elegido en la escena de la marca.</summary>
+    public void SetVisual(Transform modelo)
+    {
+        if (modelo != null)
+            visual = modelo;
+    }
+
     /// <summary>Entrada del joystick, valores entre -1 y 1 en cada eje.</summary>
     public void SetSteering(Vector2 input)
     {

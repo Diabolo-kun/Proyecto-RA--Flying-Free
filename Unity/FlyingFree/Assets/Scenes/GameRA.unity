@@ -302,6 +302,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::TouchFlightController
   cam: {fileID: 369610904}
   planePrefab: {fileID: 7341694017595655914, guid: a59ee53fda370f04b94bc73f27d240c8, type: 3}
+  avionesElegibles:
+  - {fileID: 9019324333731354975, guid: a846cde4178607a4da3d79ebb0428fb6, type: 3}
+  - {fileID: 3913206083962907642, guid: 0d0b3211e5e88cc43a1c4185a7971f28, type: 3}
+  - {fileID: 88771024274640976, guid: 8e98f5390e59ef64d80df126390c406f, type: 3}
   spawnViewport: {x: 0.5, y: 0.5}
   spawnDistance: 0.1
   aimAtTouch: 0
