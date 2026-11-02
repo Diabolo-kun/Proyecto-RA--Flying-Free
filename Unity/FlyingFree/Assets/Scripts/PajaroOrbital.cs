@@ -41,6 +41,8 @@ public class PajaroOrbital : MonoBehaviour
             0.01f, frecuenciaCambioAltura);
     }
 
+    private ControlBandada gestorBandada;
+
     public void Iniciar(
         Camera camara,
         Vector3 centro,
@@ -50,10 +52,12 @@ public class PajaroOrbital : MonoBehaviour
         float oscilacionVuelo,
         float angulo,
         int numeroVueltas,
-        int direccion)
+        int direccion,
+        ControlBandada gestor = null)
     {
         camaraAR = camara;
         centroLocal = centro;
+        gestorBandada = gestor;
 
         radio = Mathf.Max(0.2f, radioVuelo);
         velocidad = Mathf.Max(0.05f, velocidadVuelo);
@@ -101,6 +105,13 @@ public class PajaroOrbital : MonoBehaviour
     {
         if (!iniciado)
             return;
+
+        // Si tenemos un gestor de bandada vinculado al GameSpace, seguir suavemente el pasillo
+        if (gestorBandada != null)
+        {
+            Vector3 centroObjetivo = gestorBandada.GetCorridorCenterLocal();
+            centroLocal = Vector3.Lerp(centroLocal, centroObjetivo, 2f * Time.deltaTime);
+        }
 
         // NUEVO: velocidad que cambia suavemente
         float ruidoVelocidad = Mathf.PerlinNoise(

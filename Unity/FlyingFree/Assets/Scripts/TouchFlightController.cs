@@ -48,6 +48,21 @@ public class TouchFlightController : MonoBehaviour
     {
         if (cam == null) cam = Camera.main;
         joystickBase.gameObject.SetActive(false);
+
+        EnsureGameSpaceReference();
+    }
+
+    private void EnsureGameSpaceReference()
+    {
+        ARGameSpace gs = ARGameSpace.GetOrCreateInstance();
+        if (gs != null)
+        {
+            // Si no tiene referencia asignada o apuntaba al ImageTarget crudo, redirigir a GameSpace
+            if (arReference == null || (gs.TargetMarker != null && arReference == gs.TargetMarker))
+            {
+                arReference = gs.transform;
+            }
+        }
     }
 
     private void Update()
@@ -110,6 +125,15 @@ public class TouchFlightController : MonoBehaviour
 
     private bool SpawnPlane(Vector2 screenPos)
     {
+        EnsureGameSpaceReference();
+
+        // Si no está asignado directamente, obtener del PlaneSkinManager
+        if (planePrefab == null && PlaneSkinManager.Instance != null)
+        {
+            PaperPlane active = PlaneSkinManager.Instance.GetActivePrefab();
+            if (active != null) planePrefab = active.gameObject;
+        }
+
         if (planePrefab == null)
         {
             Debug.LogError("[TouchFlightController] 'Plane Prefab' está vacío. Asigna el prefab del avión.", this);

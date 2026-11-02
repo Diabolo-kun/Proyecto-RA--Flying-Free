@@ -92,7 +92,9 @@ public class PaperPlane : MonoBehaviour
     /// </summary>
     public void Initialize(Vector3 worldDirection, Transform referenceFrame)
     {
-        reference = referenceFrame;
+        reference = referenceFrame != null
+            ? referenceFrame
+            : (ARGameSpace.Instance != null ? ARGameSpace.Instance.transform : null);
 
         Vector3 localDir = reference != null
             ? reference.InverseTransformDirection(worldDirection)

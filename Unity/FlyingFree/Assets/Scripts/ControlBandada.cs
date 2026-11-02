@@ -20,6 +20,11 @@ public class ControlBandada : MonoBehaviour
     [Header("REFERENCIAS")]
     public Camera camaraAR;
     public GameObject prefabPajaro;
+    [Tooltip("Marco de referencia maestro GameSpace (alineado a la marca). Si está vacío se auto-conecta a ARGameSpace.Instance")]
+    public ARGameSpace gameSpace;
+    [Tooltip("Posición del pasillo de vuelo de los pájaros entre la marca (0) y la cámara (1). 0.5 = justo a medio camino.")]
+    [Range(0.2f, 0.8f)]
+    public float distanciaPasillo = 0.5f;
 
     [Header("PAJAROS ACTIVOS")]
     [Min(0)] public int minimoActivos = 2;
@@ -95,7 +100,24 @@ public class ControlBandada : MonoBehaviour
     private IEnumerator PrepararSistema()
     {
         // -------------------------------------------------------------
-        // MODO 1: SIMULACIÓN DE PRUEBAS (SIN VUFORIA)
+        // PRIORIDAD 1: VINCULACIÓN AL GAMESPACE MAESTRO (MARCA VUFORIA)
+        // -------------------------------------------------------------
+        if (gameSpace == null)
+            gameSpace = ARGameSpace.GetOrCreateInstance();
+
+        if (gameSpace != null)
+        {
+            anclaTransform = gameSpace.transform;
+            cantidadObjetivo = Random.Range(minimoActivos, maximoActivos + 1);
+            siguienteAparicion = Time.time + 0.5f;
+            siguienteCambio = Time.time + cambiarCantidadCada;
+            preparado = true;
+            Debug.Log($"[ControlBandada] Sistema de bandada anclado exitosamente al GameSpace '{gameSpace.name}'.");
+            yield break;
+        }
+
+        // -------------------------------------------------------------
+        // MODO 1: SIMULACIÓN DE PRUEBAS (SIN VUFORIA Y SIN GAMESPACE)
         // -------------------------------------------------------------
         if (testModeWithoutVuforia)
         {
@@ -160,6 +182,9 @@ public class ControlBandada : MonoBehaviour
 
     private bool SeguimientoValido()
     {
+        if (gameSpace != null)
+            return gameSpace.IsTracked || testModeWithoutVuforia || gameSpace.HasEverBeenTracked;
+
         if (testModeWithoutVuforia)
             return anclaTransform != null;
 
@@ -227,8 +252,8 @@ public class ControlBandada : MonoBehaviour
 
         adelante.Normalize();
 
-        // Centro de vuelo expresado en coordenadas locales del ancla
-        Vector3 centro = anclaTransform.InverseTransformPoint(camaraAR.transform.position);
+        // Centro de vuelo expresado en coordenadas locales del ancla (pasillo entre cámara y marca)
+        Vector3 centro = GetCorridorCenterLocal();
 
         for (int intento = 0; intento < 12; intento++)
         {
@@ -306,12 +331,35 @@ public class ControlBandada : MonoBehaviour
                 oscilacionVertical,
                 angulo,
                 vueltas,
-                sentido
+                sentido,
+                this
             );
 
             activos.Add(vuelo);
             return;
         }
+    }
+
+    /// <summary>
+    /// Calcula el punto del pasillo de vuelo donde orbitan los pájaros (en coordenadas locales del ancla).
+    /// Si está conectado a GameSpace, se sitúa a medio camino entre la marca y la cámara.
+    /// </summary>
+    public Vector3 GetCorridorCenterLocal()
+    {
+        if (gameSpace != null)
+        {
+            Vector3 point = gameSpace.GetCorridorPointLocal(distanciaPasillo);
+            point.y += alturaRespectoCamara;
+            return point;
+        }
+
+        if (camaraAR == null) camaraAR = Camera.main;
+        if (anclaTransform != null && camaraAR != null)
+        {
+            return anclaTransform.InverseTransformPoint(camaraAR.transform.position) + new Vector3(0, alturaRespectoCamara, 0);
+        }
+
+        return Vector3.zero;
     }
 
     /// <summary>
@@ -335,6 +383,21 @@ public class ControlBandada : MonoBehaviour
     {
         if (anclaTransform == null)
         {
+            if (gameSpace != null)
+            {
+                anclaTransform = gameSpace.transform;
+                preparado = true;
+                return;
+            }
+
+            gameSpace = ARGameSpace.GetOrCreateInstance();
+            if (gameSpace != null)
+            {
+                anclaTransform = gameSpace.transform;
+                preparado = true;
+                return;
+            }
+
             GameObject anclaSimulada = new GameObject("AnclaBandada_Simulada");
             anclaSimulada.transform.position = camaraAR != null ? camaraAR.transform.position : transform.position;
             anclaSimulada.transform.rotation = Quaternion.identity;
@@ -378,7 +441,9 @@ public class ControlBandada : MonoBehaviour
         Camera cam = camaraAR != null ? camaraAR : Camera.main;
         if (cam == null) return;
 
-        Vector3 centro = cam.transform.position + new Vector3(0, alturaRespectoCamara, 0);
+        Vector3 centro = (anclaTransform != null)
+            ? anclaTransform.TransformPoint(GetCorridorCenterLocal())
+            : (cam.transform.position + new Vector3(0, alturaRespectoCamara, 0));
 
         // Círculo de la órbita de vuelo en cyan
         Gizmos.color = new Color(0.2f, 0.8f, 1f, 0.7f);

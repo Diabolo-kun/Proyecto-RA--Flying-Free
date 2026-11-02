@@ -56,6 +56,10 @@ public class BalloonAnimator : MonoBehaviour
     [Tooltip("Si está activo, asigna un color aleatorio vibrante al material al nacer")]
     public bool randomizeColor = true;
 
+    [Header("Orientación y Gravedad")]
+    [Tooltip("Garantiza que el nudo del globo apunte siempre hacia el suelo real (Vector3.down), sin importar la rotación de la marca")]
+    public bool alignKnotWithGravity = true;
+
     private Vector3 initialBasePos;
     private Vector3 targetLocalPos;
     private Quaternion initialLocalRot;
@@ -66,7 +70,14 @@ public class BalloonAnimator : MonoBehaviour
 
     private void Awake()
     {
-        initialLocalRot = transform.localRotation;
+        if (alignKnotWithGravity)
+        {
+            AlignWithGravity();
+        }
+        else
+        {
+            initialLocalRot = transform.localRotation;
+        }
         randomPhaseOffset = Random.Range(0f, Mathf.PI * 2f);
     }
 
@@ -85,12 +96,61 @@ public class BalloonAnimator : MonoBehaviour
     }
 
     /// <summary>
+    /// Alinea la rotación local del globo para que su nudo (-Y) mire hacia abajo en el mundo real.
+    /// </summary>
+    public void AlignWithGravity()
+    {
+        if (transform.parent != null)
+        {
+            Vector3 wallNormal = transform.parent.up;
+            Vector3 forwardInRoom = Vector3.ProjectOnPlane(wallNormal, Vector3.up);
+            if (forwardInRoom.sqrMagnitude < 0.001f) forwardInRoom = transform.parent.forward;
+            forwardInRoom.Normalize();
+
+            Quaternion worldRot = Quaternion.LookRotation(forwardInRoom, Vector3.up);
+            transform.localRotation = Quaternion.Inverse(transform.parent.rotation) * worldRot;
+        }
+        else
+        {
+            transform.rotation = Quaternion.LookRotation(Vector3.forward, Vector3.up);
+        }
+        initialLocalRot = transform.localRotation;
+    }
+
+    /// <summary>
+    /// Inicia la animación de subida directamente desde una posición inicial hasta una posición objetivo.
+    /// </summary>
+    public void StartAnimationToTarget(Vector3 groundPos, Vector3 targetPos)
+    {
+        initialBasePos = groundPos;
+        targetLocalPos = targetPos;
+        transform.localPosition = groundPos;
+
+        if (alignKnotWithGravity)
+        {
+            AlignWithGravity();
+        }
+        else
+        {
+            initialLocalRot = transform.localRotation;
+        }
+
+        elapsedTime = 0f;
+        isRising = true;
+    }
+
+    /// <summary>
     /// Inicia la animación calculando la altura aleatoria y la posición final.
     /// </summary>
     public void StartAnimation(Vector3 spawnGroundPosition, float customTargetHeight = -1f)
     {
         initialBasePos = spawnGroundPosition;
         transform.localPosition = initialBasePos;
+
+        if (alignKnotWithGravity)
+        {
+            AlignWithGravity();
+        }
 
         chosenHeight = (customTargetHeight > 0f) ? customTargetHeight : Random.Range(minHeight, maxHeight);
 
@@ -149,16 +209,25 @@ public class BalloonAnimator : MonoBehaviour
             float swayX = Mathf.Sin(time * swayFrequency) * swayMaxAngle;
             float swayZ = Mathf.Cos(time * swayFrequency * 0.8f) * swayMaxAngle;
 
-            Vector3 bobVector = Vector3.zero;
-            switch (movementAxis)
+            Vector3 bobVector;
+            if (alignKnotWithGravity && transform.parent != null)
             {
-                case MovementAxis.Local_Z_WallUp:
-                    bobVector = new Vector3(0, 0, bob);
-                    break;
-                case MovementAxis.Local_Y_Normal:
-                case MovementAxis.World_Y:
-                    bobVector = new Vector3(0, bob, 0);
-                    break;
+                // Bobbing vertical siempre respecto al mundo real
+                bobVector = transform.parent.InverseTransformDirection(Vector3.up * bob);
+            }
+            else
+            {
+                switch (movementAxis)
+                {
+                    case MovementAxis.Local_Z_WallUp:
+                        bobVector = new Vector3(0, 0, bob);
+                        break;
+                    case MovementAxis.Local_Y_Normal:
+                    case MovementAxis.World_Y:
+                    default:
+                        bobVector = new Vector3(0, bob, 0);
+                        break;
+                }
             }
 
             transform.localPosition = targetLocalPos + bobVector;

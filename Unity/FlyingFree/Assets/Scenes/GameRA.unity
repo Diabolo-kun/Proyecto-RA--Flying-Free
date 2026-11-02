@@ -1558,6 +1558,7 @@ MonoBehaviour:
   numberOfObjects: 6
   minDistanceBetweenObjects: 0.35
   maxPlacementAttempts: 100
+  nudoHaciaAbajoGravedad: 1
   applyRiseAnimation: 1
   riseAxis: 0
   minRiseHeight: 0.4
