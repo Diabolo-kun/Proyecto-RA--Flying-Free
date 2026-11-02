@@ -134,8 +134,13 @@ public class TouchFlightController : MonoBehaviour
             dir = (aimPoint - spawnPos).normalized;
         }
 
+        // Usar la variante activa desde PlaneSkinManager (o fallback a planePrefab)
+        PaperPlane prefabToSpawn = (PlaneSkinManager.Instance != null)
+            ? PlaneSkinManager.Instance.GetActivePrefab()
+            : planePrefab;
+
         // Sin parent: así no se oculta si Vuforia pierde el target
-        currentPlane = Instantiate(planePrefab, spawnPos, Quaternion.LookRotation(dir));
+        currentPlane = Instantiate(prefabToSpawn, spawnPos, Quaternion.LookRotation(dir));
         currentPlane.transform.localScale *= scale;
         currentPlane.Initialize(dir, arReference);
         currentPlane.OnFinished += HandlePlaneFinished;

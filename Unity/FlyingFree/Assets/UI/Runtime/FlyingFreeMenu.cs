@@ -63,7 +63,37 @@ namespace FlyingFree.UI
         }
 
         // Start allows listeners to subscribe from their own Awake/OnEnable first.
-        void Start() { PublishAudio(); Select(playButton); }
+        void Start() 
+        { 
+            PublishAudio(); 
+            Select(playButton); 
+            ActualizarTextoAvion();
+        }
+
+        void OnEnable()
+        {
+            PlaneSkinManager.OnSkinChanged += HandleSkinChanged;
+            ActualizarTextoAvion();
+        }
+
+        void OnDisable()
+        {
+            PlaneSkinManager.OnSkinChanged -= HandleSkinChanged;
+        }
+
+        private void HandleSkinChanged(PlaneSkinEntry skin)
+        {
+            ActualizarTextoAvion();
+        }
+
+        private void ActualizarTextoAvion()
+        {
+            string nombre = PlaneSkinManager.Instance != null 
+                ? PlaneSkinManager.Instance.GetActiveSkinName() 
+                : "Estándar";
+            SetPlaneStatusText(nombre);
+        }
+
         public void Play() { onPlayRequested.Invoke(); }
         public void Exit()
         {
@@ -81,6 +111,7 @@ namespace FlyingFree.UI
             if (IsSettingsOpen) return;
             mainPage.SetActive(false);
             settingsPage.SetActive(true);
+            ActualizarTextoAvion();
             Select(soundSlider);
             onSettingsOpened.Invoke();
         }
@@ -96,8 +127,15 @@ namespace FlyingFree.UI
         }
         public void ResetPlane()
         {
-            Debug.Log("[FlyingFreeMenu] Avión estándar restablecido / seleccionado correctamente.");
-            SetPlaneStatusText("Estándar");
+            Debug.Log("[FlyingFreeMenu] Restableciendo avión a estándar...");
+            if (PlaneSkinManager.Instance != null)
+            {
+                PlaneSkinManager.Instance.ResetToDefault();
+            }
+            else
+            {
+                SetPlaneStatusText("Estándar");
+            }
             onResetPlaneRequested.Invoke();
         }
         /// <summary>Modifica dinámicamente el texto que acompaña al botón de configuración del avión.</summary>

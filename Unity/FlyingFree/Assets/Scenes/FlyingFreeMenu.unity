@@ -256,6 +256,69 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1601234560
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1601234561}
+  - component: {fileID: 1601234562}
+  m_Layer: 0
+  m_Name: PlaneSkinManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1601234561
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1601234560}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1601234562
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1601234560}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7123456789ac4f5eb10874e0d9b10d03, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlaneSkinManager
+  perfilPorDefecto: {fileID: 11400000, guid: 7f82f361ab4cc0542aef5fc2f8a5c47a, type: 2}
+  skinsDisponibles:
+  - perfil: {fileID: 11400000, guid: 7f82f361ab4cc0542aef5fc2f8a5c47a, type: 2}
+    id: estandar
+    nombreVisible: "Avi\xF3n Est\xE1ndar"
+    descripcion: "El cl\xE1sico avi\xF3n de papel blanco plegado a mano."
+    prefab: {fileID: 7341694017595655914, guid: a59ee53fda370f04b94bc73f27d240c8, type: 3}
+    targetTrackableName: 
+    icono: {fileID: 0}
+    desbloqueadoPorDefecto: 1
+  - perfil: {fileID: 11400000, guid: e3d4606f0812d50488b1f998ec29c07e, type: 2}
+    id: ascorazones
+    nombreVisible: As de Corazones
+    descripcion: "Variante carmes\xED desbloqueada con la carta del As de Corazones."
+    prefab: {fileID: 7341694017595655914, guid: a123456789ac4f5eb10874e0d9b10b02, type: 3}
+    targetTrackableName: ascorazones
+    icono: {fileID: 0}
+    desbloqueadoPorDefecto: 0
+  defaultPlanePrefab: {fileID: 1250615762258731603, guid: a59ee53fda370f04b94bc73f27d240c8, type: 3}
 --- !u!1001 &1707340855
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -454,3 +517,4 @@ SceneRoots:
   m_Roots:
   - {fileID: 1707340855}
   - {fileID: 52892827}
+  - {fileID: 1601234561}
