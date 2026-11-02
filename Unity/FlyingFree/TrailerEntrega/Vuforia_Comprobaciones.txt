@@ -1,0 +1,10 @@
+PASS Vuforia 10.17.4 inicia el motor y la cámara
+PASS Marca nueva FlyingFree_Trailer creada con Instant Image Target
+PASS Base existente compatible: Base/ascorazones
+PASS Base existente compatible: Base/aspicas
+PASS Base existente compatible: Base/joker
+PASS Base existente compatible: TargetManagerBBDD/target_pajaro
+PASS Base existente compatible: TargetManagerBBDD/target_logo
+PASS Base existente compatible: TargetManagerBBDD/target_avion
+PASS Base existente compatible: TargetManagerBBDD/target_globo
+PENDIENTE: reconocimiento de la nueva imagen impresa y prueba física en móvil. No se ha simulado una detección en este ensayo.

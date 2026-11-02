@@ -1,0 +1,16 @@
+PASS Escena de simulación cargada con el vídeo real
+PASS Vídeo preparado, duración y búsqueda disponibles
+PASS No se reproduce antes de reconocer la marca
+PASS La marca encontrada inicia la reproducción (visible=True, wanted=True, time=0,208333333333333, estado=SIMULACIÓN · Reproduciendo sobre la marca)
+PASS Pausa conserva el fotograma
+PASS Perder y recuperar marca no anula una pausa manual
+PASS Avance de 10 segundos conserva reproducción
+PASS Retroceso de 10 segundos
+PASS Perder marca pausa audio/vídeo y oculta la pantalla RA
+PASS Recuperar marca conserva la intención de reanudar
+PASS Arrastrar la barra busca una posición real del vídeo
+PASS Pulsaciones rápidas conservan la última posición solicitada
+PASS Al terminar se muestra la opción de volver a ver
+PASS Repetir vuelve al inicio
+PASS Regreso al menú con JUGAR, TRÁILER, CONFIGURACIÓN y SALIR
+PASS Volver al menú descarga el reproductor
