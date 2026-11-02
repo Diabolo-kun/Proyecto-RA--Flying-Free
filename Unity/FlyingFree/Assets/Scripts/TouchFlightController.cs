@@ -1,8 +1,5 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
-#if ENABLE_INPUT_SYSTEM
-using UnityEngine.InputSystem;
-#endif
 
 /// <summary>
 /// Al tocar la pantalla: lanza un avión de papel desde la cámara AR.
@@ -21,7 +18,8 @@ public class TouchFlightController : MonoBehaviour
     [Header("Avión")]
     [Tooltip("La ARCamera de Vuforia. Si se deja vacío usa Camera.main.")]
     [SerializeField] private Camera cam;
-    [SerializeField] private PaperPlane planePrefab;
+    [Tooltip("Prefab del avión. El script PaperPlane debe estar en el objeto RAÍZ del prefab.")]
+    [SerializeField] private GameObject planePrefab;
     [Tooltip("Posición de salida en viewport (0-1). (0.5, 0.15) = abajo al centro.")]
     [SerializeField] private Vector2 spawnViewport = new Vector2(0.5f, 0.15f);
     [SerializeField] private float spawnDistance = 1.5f;
@@ -30,7 +28,7 @@ public class TouchFlightController : MonoBehaviour
     [SerializeField] private float aimDistance = 20f;
 
     [Header("Realidad Aumentada (Vuforia)")]
-    [Tooltip("Image Target (o su contenido). Define el 'arriba' del vuelo y la escala. Puede dejarse vacío.")]
+    [Tooltip("GameSpace (hijo del Image Target). Define el 'arriba' del vuelo y la escala. Puede dejarse vacío.")]
     [SerializeField] private Transform arReference;
     [Tooltip("Multiplica distancias, velocidad y tamaño del avión por la escala de la referencia.")]
     [SerializeField] private bool scaleWithReference = true;
@@ -54,28 +52,6 @@ public class TouchFlightController : MonoBehaviour
 
     private void Update()
     {
-#if ENABLE_INPUT_SYSTEM
-        var pointer = Pointer.current;
-        if (pointer == null) return;
-
-        Vector2 pointerPos = pointer.position.ReadValue();
-
-        if (pointer.press.wasPressedThisFrame && !IsPointerOverUI())
-        {
-            BeginTouch(pointerPos);
-        }
-
-        if (!holding) return;
-
-        if (pointer.press.isPressed)
-        {
-            UpdateJoystick(pointerPos);
-        }
-        else
-        {
-            EndTouch();
-        }
-#else
         if (Input.GetMouseButtonDown(0) && !IsPointerOverUI())
             BeginTouch(Input.mousePosition);
 
@@ -85,7 +61,20 @@ public class TouchFlightController : MonoBehaviour
             UpdateJoystick(Input.mousePosition);
         else
             EndTouch();
-#endif
+    }
+
+    private void OnDisable()
+    {
+        // Si otro script (p. ej. GameManagerRA al terminar la partida) desactiva este
+        // controlador con el dedo pulsado, Update deja de ejecutarse y el joystick
+        // se quedaría visible en pantalla. Lo limpiamos aquí.
+        holding = false;
+
+        if (joystickBase != null)
+            joystickBase.gameObject.SetActive(false);
+
+        if (currentPlane != null)
+            currentPlane.SetSteering(Vector2.zero);
     }
 
     // ───────────── Toque ─────────────
@@ -96,7 +85,9 @@ public class TouchFlightController : MonoBehaviour
         if (currentPlane != null)
             Destroy(currentPlane.gameObject);
 
-        SpawnPlane(screenPos);
+        // Si no se pudo crear el avión (prefab mal asignado), no mostramos joystick
+        if (!SpawnPlane(screenPos))
+            return;
 
         touchOrigin = screenPos;
         holding = true;
@@ -117,8 +108,14 @@ public class TouchFlightController : MonoBehaviour
 
     // ───────────── Avión ─────────────
 
-    private void SpawnPlane(Vector2 screenPos)
+    private bool SpawnPlane(Vector2 screenPos)
     {
+        if (planePrefab == null)
+        {
+            Debug.LogError("[TouchFlightController] 'Plane Prefab' está vacío. Asigna el prefab del avión.", this);
+            return false;
+        }
+
         float scale = (arReference != null && scaleWithReference)
             ? arReference.lossyScale.x
             : 1f;
@@ -134,16 +131,24 @@ public class TouchFlightController : MonoBehaviour
             dir = (aimPoint - spawnPos).normalized;
         }
 
-        // Usar la variante activa desde PlaneSkinManager (o fallback a planePrefab)
-        PaperPlane prefabToSpawn = (PlaneSkinManager.Instance != null)
-            ? PlaneSkinManager.Instance.GetActivePrefab()
-            : planePrefab;
+        // Sin parent: así no se oculta si Vuforia pierde el target.
+        // Se instancia como GameObject y se busca el componente después, en lugar de
+        // Instantiate<PaperPlane>, para evitar el InvalidCastException de las builds.
+        GameObject planeObject = Instantiate(planePrefab, spawnPos, Quaternion.LookRotation(dir));
 
-        // Sin parent: así no se oculta si Vuforia pierde el target
-        currentPlane = Instantiate(prefabToSpawn, spawnPos, Quaternion.LookRotation(dir));
-        currentPlane.transform.localScale *= scale;
-        currentPlane.Initialize(dir, arReference);
-        currentPlane.OnFinished += HandlePlaneFinished;
+        PaperPlane plane = planeObject.GetComponent<PaperPlane>();
+        if (plane == null)
+        {
+            Debug.LogError("[TouchFlightController] El prefab asignado no tiene el script PaperPlane en el objeto raíz.", planePrefab);
+            Destroy(planeObject);
+            return false;
+        }
+
+        planeObject.transform.localScale *= scale;
+        plane.Initialize(dir, arReference);
+        plane.OnFinished += HandlePlaneFinished;
+        currentPlane = plane;
+        return true;
     }
 
     private void HandlePlaneFinished(bool hitTarget)
@@ -186,18 +191,9 @@ public class TouchFlightController : MonoBehaviour
     {
         if (EventSystem.current == null) return false;
 
-#if ENABLE_INPUT_SYSTEM
-        if (Touchscreen.current != null && Touchscreen.current.primaryTouch.press.isPressed)
-        {
-            int touchId = Touchscreen.current.primaryTouch.touchId.ReadValue();
-            return EventSystem.current.IsPointerOverGameObject(touchId);
-        }
-        return EventSystem.current.IsPointerOverGameObject();
-#else
         if (Input.touchCount > 0)
             return EventSystem.current.IsPointerOverGameObject(Input.GetTouch(0).fingerId);
 
         return EventSystem.current.IsPointerOverGameObject();
-#endif
     }
 }

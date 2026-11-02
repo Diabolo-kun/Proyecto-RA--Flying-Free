@@ -2,6 +2,7 @@ using System;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using TMPro;
 
 /// <summary>
 /// Gestor principal del juego en la escena GameRA:
@@ -37,16 +38,16 @@ public class GameManagerRA : MonoBehaviour
 
     [Header("Textos UI de Partida (Opcional)")]
     [Tooltip("Texto para mostrar la cuenta atrás de tiempo restante")]
-    [SerializeField] private Text textoTiempo;
+    [SerializeField] private TMP_Text textoTiempo;
 
     [Tooltip("Texto para mostrar la puntuación y objetivo durante la partida (ej. '3 / 5')")]
-    [SerializeField] private Text textoPuntuacion;
+    [SerializeField] private TMP_Text textoPuntuacion;
 
     [Tooltip("Texto dentro del Canvas de Victoria para mostrar los globos conseguidos")]
-    [SerializeField] private Text textoResultadoVictoria;
+    [SerializeField] private TMP_Text textoResultadoVictoria;
 
     [Tooltip("Texto dentro del Canvas de Derrota para mostrar los globos conseguidos")]
-    [SerializeField] private Text textoResultadoDerrota;
+    [SerializeField] private TMP_Text textoResultadoDerrota;
 
     // Estado interno
     private float tiempoRestante;
@@ -147,12 +148,12 @@ public class GameManagerRA : MonoBehaviour
         if (textoTiempo != null)
         {
             int segundos = Mathf.CeilToInt(tiempoRestante);
-            textoTiempo.text = $"Tiempo: {segundos:00}s";
+            textoTiempo.text = $"{segundos / 60:00}:{segundos % 60:00}";
         }
 
         if (textoPuntuacion != null)
         {
-            textoPuntuacion.text = $"Globos: {scoreActual} / {globosParaGanar}";
+            textoPuntuacion.text = $"{scoreActual} / {globosParaGanar}";
         }
     }
 
@@ -262,7 +263,7 @@ public class GameManagerRA : MonoBehaviour
 
             int seg = Mathf.CeilToInt(tiempoRestante);
             labelStyle.normal.textColor = seg <= 5 ? Color.red : Color.white;
-            GUI.Label(new Rect(20, 15, 240, 24), $"⏱ Tiempo: {seg:00}s / {Mathf.CeilToInt(tiempoDeJuego)}s", labelStyle);
+            GUI.Label(new Rect(20, 15, 240, 24), $"⏱ Tiempo: {seg / 60:00}:{seg % 60:00} / {Mathf.CeilToInt(tiempoDeJuego) / 60:00}:{Mathf.CeilToInt(tiempoDeJuego) % 60:00}", labelStyle);
 
             labelStyle.normal.textColor = score >= globosParaGanar ? Color.green : Color.yellow;
             GUI.Label(new Rect(20, 42, 240, 24), $"🎈 Globos: {score} / {globosParaGanar}", labelStyle);
@@ -294,7 +295,7 @@ public class GameManagerRA : MonoBehaviour
                     alignment = TextAnchor.MiddleCenter
                 };
                 string msg = haGanado
-                    ? $"¡Has conseguido {score} globos!\n(Objetivo: {globosParaGanar} en {tiempoDeJuego}s)"
+                    ? $"¡Has conseguido {score} globos!\n(Objetivo: {globosParaGanar} en {tiempoDeJuego / 60:00}:{tiempoDeJuego % 60:00})"
                     : $"Solo conseguiste {score} de los {globosParaGanar} globos necesarios.";
                 GUI.Label(new Rect(x + 10, y + 55, w - 20, 45), msg, infoStyle);
 
