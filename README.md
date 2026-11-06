@@ -1,5 +1,9 @@
 # Proyecto-RA--Flying-Free
 
+## Sprint 2b: colisiones e interacciones (tarea 4)
+
+Encuadre compacto alrededor del logo, globos que ascienden paralelos al plano de la marca, detección de impactos rápidos, explosión completa, contacto con pájaros y protección contra colisiones duplicadas. Integrado en `GameRA` con las tareas 3 y 5 de `Sprint2`, comprobador desde Unity y pruebas conjuntas de colisiones, pájaros y partida. [Guía de apertura, integración y resultados](doc/Sprint2b_Colisiones/LEEME.md).
+
 ## Sprint 2b: puntuación y partida
 
 Aviones ilimitados, objetivo de cinco globos en treinta segundos, estadísticas de aciertos/fallos/robos y pantallas de resultado. [Guía de integración y pruebas](doc/Sprint2b_Partida/LEEME.md).

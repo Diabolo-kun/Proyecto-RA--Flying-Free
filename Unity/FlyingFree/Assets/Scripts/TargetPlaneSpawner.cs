@@ -30,6 +30,70 @@ public class TargetPlaneSpawner : MonoBehaviour
     [Tooltip("Prefab asignado que se generará aleatoriamente (ej. Globo)")]
     public GameObject prefabToSpawn;
 
+    [Header("--- PLANO DE LA MARCA ---")]
+    [Tooltip("Los globos suben paralelos a la imagen, hacia la parte superior de la vista. X = ancho, Z = altura sobre la imagen, Y = separación constante de la marca.")]
+    public bool uprightLayout = true;
+
+    public Quaternion LayoutRotation
+    {
+        get
+        {
+            if (!uprightLayout) return transform.rotation;
+            Camera camera = ARGameSpace.Instance != null ? ARGameSpace.Instance.CameraAR : Camera.main;
+            if (camera == null) camera = Camera.main;
+            return ARGameSpace.MarkerPlaneFrame(transform, camera);
+        }
+    }
+    [Tooltip("Ajusta una vez el conjunto al encuadre real al generar la ronda; mantiene su escala al mover la cámara.")]
+    public bool fitLayoutToCamera;
+    [Range(.01f, 1)] public float maximumLayoutScale = .15f;
+    private float layoutScale = 1;
+    private Vector2 layoutShift;
+    public float LayoutScale => layoutScale;
+    private Vector3 LayoutOrigin => transform.position + LayoutRotation * new Vector3(layoutShift.x, 0, layoutShift.y);
+    private Matrix4x4 LayoutMatrix => Matrix4x4.TRS(LayoutOrigin, LayoutRotation, transform.lossyScale * layoutScale);
+
+    private void FitLayout()
+    {
+        layoutScale = 1; layoutShift = Vector2.zero;
+        if (!fitLayoutToCamera) return;
+        Camera camera = ARGameSpace.Instance != null ? ARGameSpace.Instance.CameraAR : Camera.main;
+        if (camera == null) camera = Camera.main;
+        layoutScale = maximumLayoutScale;
+        if (camera != null)
+        {
+            Quaternion rotation = LayoutRotation;
+            var plane = new Plane(rotation * Vector3.up, transform.position);
+            Vector2 min = Vector2.one * float.PositiveInfinity, max = Vector2.one * float.NegativeInfinity;
+            bool valid = true;
+            // Reservar espacio para HUD y gesto/joystick. Se usa la proyección calibrada
+            // de la ARCamera, no una distancia supuesta ni un FOV fijo del editor.
+            foreach (var corner in new[] { new Vector2(.12f, .22f), new Vector2(.88f, .22f),
+                new Vector2(.88f, .80f), new Vector2(.12f, .80f) })
+            {
+                Ray ray = camera.ViewportPointToRay(corner);
+                if (!plane.Raycast(ray, out float distance)) { valid = false; break; }
+                Vector3 local = Quaternion.Inverse(rotation) * (ray.GetPoint(distance) - transform.position);
+                min = Vector2.Min(min, new Vector2(local.x, local.z));
+                max = Vector2.Max(max, new Vector2(local.x, local.z));
+            }
+            if (valid)
+            {
+                // El margen incluye el cuerpo, el hilo y la oscilación del prefab real.
+                Vector2 size = planeSize + new Vector2(.44f, .70f);
+                layoutScale = Mathf.Clamp(Mathf.Min(maximumLayoutScale, (max.x - min.x) / size.x,
+                    (max.y - min.y) / size.y), .002f, maximumLayoutScale);
+                Vector2 half = size * (layoutScale * .5f);
+                Vector2 desiredCenter = new Vector2(planeOffset.x, planeOffset.z) * layoutScale;
+                Vector2 center = new Vector2(Mathf.Clamp(desiredCenter.x, min.x + half.x, max.x - half.x),
+                    Mathf.Clamp(desiredCenter.y, min.y + half.y, max.y - half.y));
+                layoutShift = center - desiredCenter;
+            }
+        }
+        ARGameSpace.GetOrCreateInstance().SetGameplayScale(layoutScale);
+        UpdateLayoutPose();
+    }
+
     [Header("--- DIMENSIONES DEL PLANO / PARED ---")]
     [Tooltip("Forma y algoritmo del área de generación")]
     public AreaShape areaShape = AreaShape.RectangularPlane;
@@ -137,6 +201,7 @@ public class TargetPlaneSpawner : MonoBehaviour
     private Vector3 lastCalculatedCrossPoint = Vector3.zero;
     private bool isCurrentlyTracked = false;
     private bool hasGeneratedOnce = false;
+    private bool hasStarted;
 
     private void Awake()
     {
@@ -160,6 +225,7 @@ public class TargetPlaneSpawner : MonoBehaviour
 
     private void Start()
     {
+        hasStarted = true;
         // Asegurar que el marco de referencia maestro ARGameSpace esté listo y alineado
         ARGameSpace.GetOrCreateInstance();
 
@@ -187,7 +253,7 @@ public class TargetPlaneSpawner : MonoBehaviour
         if (cornerMargin > planeSize.x * 0.45f) cornerMargin = planeSize.x * 0.45f;
         if (cornerMargin > planeSize.y * 0.45f) cornerMargin = planeSize.y * 0.45f;
 
-        if (Application.isPlaying)
+        if (Application.isPlaying && hasStarted)
         {
             if (testModeWithoutVuforia && !isCurrentlyTracked)
             {
@@ -226,6 +292,8 @@ public class TargetPlaneSpawner : MonoBehaviour
     public void OnTargetFound()
     {
         isCurrentlyTracked = true;
+        EnsureContainers();
+        UpdateLayoutPose();
 
         if (planeVisualObject != null && showVisualPlane)
             planeVisualObject.SetActive(true);
@@ -237,6 +305,8 @@ public class TargetPlaneSpawner : MonoBehaviour
             // Re-habilitar los renderers principales por si fueron deshabilitados por DefaultObserverEventHandler
             foreach (Renderer r in spawnedObjectsContainer.GetComponentsInChildren<Renderer>(true))
             {
+                var balloon = r.GetComponentInParent<GloboTarget>();
+                if (balloon != null && balloon.IsPopped) continue;
                 if (!r.gameObject.name.StartsWith("Globo_Trozo_"))
                 {
                     r.enabled = true;
@@ -284,6 +354,26 @@ public class TargetPlaneSpawner : MonoBehaviour
                 spawnedObjectsContainer.transform.SetParent(transform, false);
             }
         }
+        UpdateLayoutPose();
+    }
+
+    // Vuforia actualiza la pose del ImageTarget. Compensamos su inclinación antes
+    // de animar los globos y antes de que PaperPlane ejecute su barrido (orden 100).
+    private void LateUpdate() { UpdateLayoutPose(); }
+    private void UpdateLayoutPose()
+    {
+        Quaternion rotation = LayoutRotation;
+        if (spawnedObjectsContainer != null)
+        {
+            spawnedObjectsContainer.transform.position = LayoutOrigin;
+            spawnedObjectsContainer.transform.rotation = rotation;
+            spawnedObjectsContainer.transform.localScale = Vector3.one * layoutScale;
+        }
+        if (planeVisualObject != null)
+        {
+            planeVisualObject.transform.position = LayoutMatrix.MultiplyPoint3x4(planeOffset + new Vector3(0, .001f, 0));
+            planeVisualObject.transform.rotation = rotation * Quaternion.Euler(90, 0, 0);
+        }
     }
 
     /// <summary>
@@ -300,6 +390,7 @@ public class TargetPlaneSpawner : MonoBehaviour
         spawnedPositions.Clear();
         spawnedCrossPoints.Clear();
         int successfullySpawned = 0;
+        FitLayout();
 
         // Calcular el nivel del suelo donde empezará la animación
         float floorLevel = useBottomCornerAsFloor ? (planeOffset.z - (planeSize.y * 0.5f)) : customFloorOffset;
@@ -352,34 +443,16 @@ public class TargetPlaneSpawner : MonoBehaviour
 
         // 1. Orientación del globo con nudo hacia abajo (gravedad real):
         // En Vuforia, la normal que sale del plano del ImageTarget es transform.up (+Y).
-        Vector3 wallNormalWorld = transform.up;
-        Vector3 forwardInRoom = Vector3.ProjectOnPlane(wallNormalWorld, Vector3.up);
-        if (forwardInRoom.sqrMagnitude < 0.001f)
-        {
-            forwardInRoom = Vector3.ProjectOnPlane(transform.forward, Vector3.up);
-        }
-        if (forwardInRoom.sqrMagnitude < 0.001f)
-        {
-            forwardInRoom = Vector3.forward;
-        }
-        forwardInRoom.Normalize();
+        Vector3 forwardInRoom = LayoutRotation * Vector3.up;
+        Vector3 imageUp = LayoutRotation * Vector3.forward;
 
         // Rotación en el mundo donde:
         // +Y mira hacia el techo (Vector3.up), por tanto el nudo (-Y) mira hacia el suelo
         // +Z mira hacia la habitación (saliendo de la pared)
-        Quaternion balloonWorldRot = Quaternion.LookRotation(forwardInRoom, Vector3.up);
+        Quaternion balloonWorldRot = Quaternion.LookRotation(forwardInRoom, imageUp);
 
         // Vector local en el plano del target que apunta hacia arriba en el mundo
-        Vector3 localWallUp = transform.InverseTransformDirection(Vector3.up);
-        localWallUp.y = 0f; // nos mantenemos en el plano X-Z de la pared
-        if (localWallUp.sqrMagnitude < 0.001f)
-        {
-            localWallUp = Vector3.forward;
-        }
-        else
-        {
-            localWallUp.Normalize();
-        }
+        Vector3 localWallUp = Vector3.forward;
 
         GameObject newObj = null;
         if (prefabToSpawn != null)
@@ -423,12 +496,13 @@ public class TargetPlaneSpawner : MonoBehaviour
         }
 
         // Asegurar que el punto en la pared esté en la superficie del target (y = 0.03m levemente separado)
-        targetPoint.y = 0.03f;
+        targetPoint.y = planeOffset.y + 0.03f;
 
         // Posición de inicio de subida desde abajo en la pared
         float riseDist = Random.Range(minRiseHeight, maxRiseHeight);
         Vector3 groundSpawnPos = targetPoint - (localWallUp * riseDist);
-        groundSpawnPos.y = 0.03f;
+        if (useBottomCornerAsFloor) groundSpawnPos.z = Mathf.Min(floorLevel, targetPoint.z);
+        groundSpawnPos.y = targetPoint.y;
 
         if (applyRiseAnimation && Application.isPlaying)
         {
@@ -530,10 +604,10 @@ public class TargetPlaneSpawner : MonoBehaviour
                 // Si hay 4 esquinas asignadas manualmente, interpolar bilinealmente
                 if (cornerBottomLeft != null && cornerBottomRight != null && cornerTopRight != null && cornerTopLeft != null)
                 {
-                    Vector3 bl = transform.InverseTransformPoint(cornerBottomLeft.position);
-                    Vector3 br = transform.InverseTransformPoint(cornerBottomRight.position);
-                    Vector3 tr = transform.InverseTransformPoint(cornerTopRight.position);
-                    Vector3 tl = transform.InverseTransformPoint(cornerTopLeft.position);
+                    Vector3 bl = LayoutMatrix.inverse.MultiplyPoint3x4(cornerBottomLeft.position);
+                    Vector3 br = LayoutMatrix.inverse.MultiplyPoint3x4(cornerBottomRight.position);
+                    Vector3 tr = LayoutMatrix.inverse.MultiplyPoint3x4(cornerTopRight.position);
+                    Vector3 tl = LayoutMatrix.inverse.MultiplyPoint3x4(cornerTopLeft.position);
 
                     float u = Random.Range(cornerMargin, 1f - cornerMargin);
                     float v = Random.Range(cornerMargin, 1f - cornerMargin);
@@ -591,10 +665,10 @@ public class TargetPlaneSpawner : MonoBehaviour
         if (areaShape == AreaShape.CustomCorners &&
             cornerBottomLeft != null && cornerBottomRight != null && cornerTopRight != null && cornerTopLeft != null)
         {
-            Vector3 bl = transform.InverseTransformPoint(cornerBottomLeft.position);
-            Vector3 br = transform.InverseTransformPoint(cornerBottomRight.position);
-            Vector3 tr = transform.InverseTransformPoint(cornerTopRight.position);
-            Vector3 tl = transform.InverseTransformPoint(cornerTopLeft.position);
+            Vector3 bl = LayoutMatrix.inverse.MultiplyPoint3x4(cornerBottomLeft.position);
+            Vector3 br = LayoutMatrix.inverse.MultiplyPoint3x4(cornerBottomRight.position);
+            Vector3 tr = LayoutMatrix.inverse.MultiplyPoint3x4(cornerTopRight.position);
+            Vector3 tl = LayoutMatrix.inverse.MultiplyPoint3x4(cornerTopLeft.position);
 
             if (withMargin)
             {
@@ -638,6 +712,8 @@ public class TargetPlaneSpawner : MonoBehaviour
             cornersParent = parentObj.transform;
             cornersParent.SetParent(transform, false);
         }
+        cornersParent.localPosition = Vector3.zero;
+        cornersParent.rotation = LayoutRotation;
 
         Transform[] cornerRefs = new Transform[4];
         for (int i = 0; i < 4; i++)
@@ -727,6 +803,7 @@ public class TargetPlaneSpawner : MonoBehaviour
         }
 
         planeVisualObject.SetActive(showVisualPlane && (!Application.isPlaying || isCurrentlyTracked));
+        UpdateLayoutPose();
     }
 
     /// <summary>
@@ -776,7 +853,7 @@ public class TargetPlaneSpawner : MonoBehaviour
 
     private void DrawGizmoVisuals(bool isSelected)
     {
-        Gizmos.matrix = transform.localToWorldMatrix;
+        Gizmos.matrix = LayoutMatrix;
 
         if (areaShape == AreaShape.RectangularPlane || areaShape == AreaShape.CustomCorners)
         {

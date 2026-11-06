@@ -41,9 +41,14 @@ public class PaperPlane : MonoBehaviour
     static readonly List<PaperPlane> activePlanes = new List<PaperPlane>();
     public static IReadOnlyList<PaperPlane> ActivePlanes => activePlanes;
     public bool IsFlying => initialized && !finished && !IsCaptured && isActiveAndEnabled;
+    /// <summary>Entrada común para triggers, barridos y robo; la pausa AR bloquea todas las interacciones.</summary>
+    public bool CanInteract => IsFlying && (GameManagerRA.Instance == null ||
+        (GameManagerRA.Instance.PartidaEnCurso && !GameManagerRA.Instance.EsperandoSeguimiento));
     public Vector3 CaptureGripOffset { get; private set; }
     public Vector3 PreviousWorldPosition { get; private set; }
-    public Vector3 WorldVelocity => ReferenceRotation * Quaternion.Euler(pitch, yaw, 0) * Vector3.forward * forwardSpeed;
+    public Vector3 WorldVelocity => reference != null
+        ? reference.TransformVector(Quaternion.Euler(pitch, yaw, 0) * Vector3.forward * forwardSpeed)
+        : Quaternion.Euler(pitch, yaw, 0) * Vector3.forward * forwardSpeed;
     bool initialized;
     UnityEngine.Object reservedByBird;
     void OnEnable() { if (!activePlanes.Contains(this)) activePlanes.Add(this); }
@@ -65,6 +70,7 @@ public class PaperPlane : MonoBehaviour
     /// <summary>Se dispara una vez: true = tocó el objetivo, false = chocó o se acabó el tiempo.</summary>
     public event Action<bool> OnFinished;
 
+    private PlaneCollisionDetector contacts;
     private Rigidbody rb;
     private Transform reference;
     private Vector3 localPosition;      // posición en el espacio de la referencia
@@ -81,6 +87,7 @@ public class PaperPlane : MonoBehaviour
     private void Awake()
     {
         rb = GetComponent<Rigidbody>();
+        contacts = new PlaneCollisionDetector(this);
         var originalMotor = GetComponent<FlyingFree.Sprint2.PaperPlaneMotor>();
         if (originalMotor != null && originalMotor.definition != null) CaptureGripOffset = originalMotor.definition.gripOffset;
         rb.isKinematic = true;
@@ -164,6 +171,7 @@ public class PaperPlane : MonoBehaviour
         if (game != null && game.IsPlaneRegistered(this) && game.EsperandoSeguimiento) return;
         // Reproyectar la posición anterior con la pose ACTUAL del marcador evita falsos barridos al relocalizar AR.
         PreviousWorldPosition = reference != null ? reference.TransformPoint(localPosition) : localPosition;
+        Quaternion previousRotation = ReferenceRotation * Quaternion.Euler(pitch, yaw, 0f);
         // Limitamos el dt para que un tirón de frame no atraviese una pared
         float dt = Mathf.Min(Time.deltaTime, 0.05f);
 
@@ -197,6 +205,8 @@ public class PaperPlane : MonoBehaviour
         // Inclinación lateral solo visual
         if (visual != null)
             visual.localRotation = Quaternion.Euler(0f, 0f, -smoothedInput.x * maxBankAngle);
+
+        if (CanInteract) contacts.CheckMovement(PreviousWorldPosition, previousRotation);
     }
 
     private void ApplyPose()
@@ -211,41 +221,31 @@ public class PaperPlane : MonoBehaviour
         transform.SetPositionAndRotation(worldPos, worldRot);
     }
 
-    private void OnTriggerEnter(Collider other)
+    private void OnTriggerEnter(Collider other) { HandleContact(other); }
+    private void OnTriggerStay(Collider other) { HandleContact(other); }
+
+    /// <summary>Único resolutor para callbacks físicos y barridos de movimiento.</summary>
+    public void HandleContact(Collider other) { HandleContact(other, null); }
+
+    internal void HandleContact(Collider other, Vector3? sweepPosition)
     {
-        if (finished || IsCaptured) return;
-
-        // 1. ¿Es un globo?
-        GloboTarget globo = other.GetComponentInParent<GloboTarget>();
-        if (globo != null)
+        if (!CanInteract || other == null || !other.enabled || !other.gameObject.activeInHierarchy
+            || other.GetComponentInParent<PaperPlane>() != null) return;
+        var balloon = other.GetComponentInParent<GloboTarget>();
+        if (balloon != null) { balloon.PopBalloon(this); return; }
+        var bird = other.GetComponentInParent<PajaroInteraccion>();
+        if (bird != null)
         {
-            globo.PopBalloon(this);
+            if (sweepPosition.HasValue) bird.HandleSweptPlaneCollision(this);
+            else bird.HandlePlaneCollision(this);
             return;
         }
-
-        // 2. ¿Es un pájaro?
-        PajaroInteraccion pajaro = other.GetComponentInParent<PajaroInteraccion>();
-        if (pajaro != null)
-        {
-            pajaro.HandlePlaneCollision(this);
-            return;
-        }
-
-        // 3. ¿Es un objetivo clásico?
-        PlaneTarget target = other.GetComponentInParent<PlaneTarget>();
-        if (target != null)
-        {
-            target.NotifyHit(this);
-            Finish(true);
-            return;
-        }
-
-        // Cualquier otro collider sólido (pared, suelo...) = choque con explosión
-        if (!other.isTrigger)
-        {
-            ExplodeInAir();
-        }
+        var target = other.GetComponentInParent<PlaneTarget>();
+        if (target != null) { target.NotifyHit(this); return; }
+        if (!other.isTrigger) ExplodeInAir(sweepPosition);
     }
+
+    internal void CompleteTargetHit() { if (CanInteract) Finish(true); }
 
     /// <summary>
     /// El pájaro ha atrapado el avión con el pico y se lo lleva volando.
@@ -257,7 +257,7 @@ public class PaperPlane : MonoBehaviour
 
     public bool TryCaptureByBird(Transform birdBeak, UnityEngine.Object bird)
     {
-        if (!IsFlying || birdBeak == null || IsReservedByOtherBird(bird)) return false;
+        if (!CanInteract || birdBeak == null || IsReservedByOtherBird(bird)) return false;
         IsCaptured = true;
         finished = true;
         reservedByBird = null;
@@ -276,13 +276,14 @@ public class PaperPlane : MonoBehaviour
     }
 
     /// <summary>
-    /// El avión choca contra un pájaro u obstáculo y explota en pedazos.
+    /// El avión choca contra un obstáculo y explota en pedazos; los pájaros usan el robo.
     /// </summary>
     public void ExplodeInAir(Vector3? customImpactPos = null)
     {
-        if (finished || IsCaptured) return;
+        if (!CanInteract) return;
         finished = true;
         steerInput = Vector2.zero;
+        DisableContacts();
 
         Vector3 spawnPos = customImpactPos.HasValue ? customImpactPos.Value : transform.position;
 
@@ -290,6 +291,7 @@ public class PaperPlane : MonoBehaviour
         if (explosionPrefab != null)
         {
             GameObject exp = Instantiate(explosionPrefab, spawnPos, Quaternion.identity);
+            if (reference != null) exp.transform.localScale *= Mathf.Abs(reference.lossyScale.x);
 
             // Asegurar que Origen_Modelo compense la altura horneada de Maya (-1.52f)
             Transform origen = exp.transform.Find("Origen_Modelo");
@@ -331,9 +333,10 @@ public class PaperPlane : MonoBehaviour
     /// </summary>
     public void OnHitBalloon()
     {
-        if (finished || IsCaptured) return;
+        if (!CanInteract) return;
         finished = true;
         steerInput = Vector2.zero;
+        DisableContacts();
 
         // Ocultar modelo visual del avión
         if (visual != null) visual.gameObject.SetActive(false);
@@ -348,8 +351,16 @@ public class PaperPlane : MonoBehaviour
         if (finished) return;
         finished = true;
         steerInput = Vector2.zero;
+        DisableContacts();
         OnFinished?.Invoke(hitTarget);
         Destroy(gameObject, destroyDelay);
+    }
+
+    private void DisableContacts()
+    {
+        reservedByBird = null;
+        if (rb != null) rb.detectCollisions = false;
+        foreach (var collider in GetComponentsInChildren<Collider>(true)) collider.enabled = false;
     }
 
     /// <summary>La ronda ha terminado o se reinicia: retirar sin generar otra pérdida.</summary>

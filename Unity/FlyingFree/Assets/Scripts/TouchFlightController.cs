@@ -159,13 +159,21 @@ public class TouchFlightController : MonoBehaviour
             : 1f;
 
         Vector3 spawnPos = cam.ViewportToWorldPoint(
-            new Vector3(spawnViewport.x, spawnViewport.y, spawnDistance * scale));
+            new Vector3(spawnViewport.x, spawnViewport.y, Mathf.Max(spawnDistance * scale, cam.nearClipPlane + .015f)));
 
         Vector3 dir = cam.transform.forward;
         if (aimAtTouch)
         {
             Ray ray = cam.ScreenPointToRay(screenPos);
             Vector3 aimPoint = ray.GetPoint(aimDistance * scale);
+            // En el formato compacto, apuntar a un plano lejano produciría paralaje:
+            // el avión saldría desde abajo y pasaría por debajo del globo pulsado.
+            var space = ARGameSpace.Instance;
+            if (space != null && space.TargetMarker != null)
+            {
+                var targetPlane = new Plane(-space.transform.forward, space.transform.position);
+                if (targetPlane.Raycast(ray, out float targetDistance)) aimPoint = ray.GetPoint(targetDistance);
+            }
             dir = (aimPoint - spawnPos).normalized;
         }
 

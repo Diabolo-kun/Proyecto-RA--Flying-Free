@@ -1,0 +1,58 @@
+PASS Ronda inicial: lanzamientos ilimitados y contador a cero
+PASS Objetivo y puntuación iniciales correctos
+PASS HUD muestra infinito en lugar de cinco municiones
+PASS Un lanzamiento válido actualiza contador y vuelo activo
+PASS Un segundo toque no destruye ni sustituye el avión en vuelo
+PASS Un segundo toque permite retomar el joystick sin lanzar otro avión
+PASS Choque repetido cuenta una única pérdida
+PASS Un fallo libera el control y permite volver a lanzar
+PASS Se pueden realizar más de cinco lanzamientos sin derrota por munición
+PASS Los fallos no suman puntuación
+PASS Un controlador desactivado no registra lanzamientos
+PASS Un prefab ausente no consume ni registra un avión
+PASS Avion_Cuaderno: un globo suma exactamente una vez
+PASS Avion_Cuaderno: el acierto no se registra como pérdida
+PASS Avion_Rayo: un globo suma exactamente una vez
+PASS Avion_Rayo: el acierto no se registra como pérdida
+PASS Avion_Brisa: un globo suma exactamente una vez
+PASS Avion_Brisa: el acierto no se registra como pérdida
+PASS Avion_AsCorazones: un globo suma exactamente una vez
+PASS Avion_AsCorazones: el acierto no se registra como pérdida
+PASS Avion_Estandar: un globo suma exactamente una vez
+PASS Avion_Estandar: el acierto no se registra como pérdida
+PASS Victoria inmediata al alcanzar cinco globos, una sola vez
+PASS Panel de victoria visible y derrota oculta
+PASS No se puede lanzar después de ganar
+PASS Los puntos tardíos no alteran el resultado final
+PASS Derrota por tiempo agotado con aviones ilimitados
+PASS El avión pendiente al agotarse el tiempo queda resuelto sin doble pérdida
+PASS Derrota bloquea lanzamientos y muestra su panel
+PASS No se pueden sumar puntos después de perder
+PASS El punto decisivo se resuelve antes de cerrar la partida
+PASS Una destrucción externa del avión no deja bloqueada la partida
+PASS Una desactivación externa también resuelve el vuelo una vez
+PASS Un avión que tarda demasiado libera el siguiente intento antes de acabar la ronda
+PASS Un avión que pasa de largo la marca se registra como fallo y permite reintentar
+PASS Antes de reconocer la marca no se pierde tiempo ni se puede lanzar
+PASS Pérdida de tracking pausa reloj y avión libre
+PASS Una colisión durante la pausa no suma puntos ni elimina el avión
+PASS Tracking recuperado reanuda reloj y vuelo
+PASS Reiniciar limpia todos los contadores y vuelos anteriores
+PASS Reiniciar oculta los paneles anteriores
+PASS Botón real conectado al gestor: Repetir
+PASS Botón real conectado al gestor: Menu
+PASS Botón real conectado al gestor: Repetir
+PASS Botón real conectado al gestor: Menu
+PASS Robo lateral real cuenta como robo y no como fallo
+PASS Después de un robo se puede lanzar de nuevo con suministro infinito
+PASS Un callback tardío no convierte un robo en acierto
+PASS Reiniciar también retira el avión que estaba en el pico del pájaro
+PASS Los gestores duplicados no destruyen el gestor principal ni su GameObject
+PASS Puntos nulos o negativos no corrompen el marcador
+PASS Reinicio y suma emiten un solo evento cada uno, sin suscripciones duplicadas
+INFO Recarga: escena=GameRA gestor=True mismaInstancia=False
+PASS Volver a jugar recarga realmente GameRA con un gestor nuevo
+PASS La recarga real empieza una ronda limpia, con aviones infinitos
+PASS La ronda recargada espera la marca sin gastar sus treinta segundos
+PASS Volver al menú carga la escena correcta y libera el gestor anterior
+RESULTADO: TODAS LAS PRUEBAS PASAN

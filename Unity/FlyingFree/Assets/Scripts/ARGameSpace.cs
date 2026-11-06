@@ -50,6 +50,13 @@ public class ARGameSpace : MonoBehaviour
     private bool isCurrentlyTracked = false;
     private bool hasEverBeenTracked = false;
     private bool hasInitializedFallback = false;
+    private float gameplayScale = 1;
+    public float GameplayScale => gameplayScale;
+    public void SetGameplayScale(float value)
+    {
+        gameplayScale = Mathf.Clamp(value, .002f, 1);
+        transform.localScale = Vector3.one * gameplayScale;
+    }
     private Vector3 lastTrackedPosition = Vector3.zero;
     private Quaternion lastTrackedRotation = Quaternion.identity;
 
@@ -169,6 +176,24 @@ public class ARGameSpace : MonoBehaviour
         UpdateTransformPose(false);
     }
 
+    /// <summary>Plano de la imagen: Z asciende por ella, Y es su normal hacia el jugador.</summary>
+    public static Quaternion MarkerPlaneFrame(Transform marker, Camera camera)
+    {
+        Vector3 normal = marker.up;
+        if (camera != null && Vector3.Dot(normal, camera.transform.position - marker.position) < 0) normal = -normal;
+        Vector3 viewUp = camera != null ? camera.transform.up : marker.forward;
+        Vector3 imageUp = Vector3.ProjectOnPlane(viewUp, normal);
+        if (imageUp.sqrMagnitude < .001f) imageUp = marker.forward;
+        return Quaternion.LookRotation(imageUp.normalized, normal);
+    }
+
+    /// <summary>Y sube por la imagen, Z vuela desde el jugador hacia su plano.</summary>
+    public static Quaternion UprightMarkerRotation(Transform marker, Camera camera)
+    {
+        Quaternion image = MarkerPlaneFrame(marker, camera);
+        return Quaternion.LookRotation(-(image * Vector3.up), image * Vector3.forward);
+    }
+
     /// <summary>
     /// Actualiza la posición y orientación de GameSpace asegurando el eje vertical hacia el cielo
     /// y el eje hacia adelante (+Z) apuntando hacia la pared.
@@ -184,25 +209,9 @@ public class ARGameSpace : MonoBehaviour
         {
             desiredPosition = targetMarker.position;
 
-            // En un ImageTarget de Vuforia en pared:
-            // targetMarker.up (+Y) sale perpendicular a la pared (hacia el jugador).
-            // Por tanto, la dirección que apunta HACIA la pared (hacia los globos) es -targetMarker.up.
-            Vector3 intoWall = -targetMarker.up;
-
             if (lockUpToGravity)
             {
-                Vector3 forwardHorizontal = Vector3.ProjectOnPlane(intoWall, Vector3.up);
-                if (forwardHorizontal.sqrMagnitude < 0.001f)
-                {
-                    forwardHorizontal = Vector3.ProjectOnPlane(targetMarker.forward, Vector3.up);
-                }
-                if (forwardHorizontal.sqrMagnitude < 0.001f)
-                {
-                    forwardHorizontal = Vector3.forward;
-                }
-
-                forwardHorizontal.Normalize();
-                desiredRotation = Quaternion.LookRotation(forwardHorizontal, Vector3.up);
+                desiredRotation = UprightMarkerRotation(targetMarker, camaraAR);
             }
             else
             {
@@ -258,7 +267,7 @@ public class ARGameSpace : MonoBehaviour
         }
 
         // La escala de GameSpace es SIEMPRE estrictamente 1 para evitar distorsiones
-        transform.localScale = Vector3.one;
+        transform.localScale = Vector3.one * gameplayScale;
     }
 
     /// <summary>

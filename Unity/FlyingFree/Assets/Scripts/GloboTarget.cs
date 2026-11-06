@@ -1,146 +1,100 @@
 using UnityEngine;
+using UnityEngine.Events;
 
-/// <summary>
-/// Componente para los globos objetivos.
-/// Al ser tocado por un avión de papel:
-/// 1. Reproduce la animación o efecto de estallar del globo.
-/// 2. Suma un punto al marcador (ScoreManager).
-/// 3. Hace desaparecer el avión de papel.
-/// </summary>
-[RequireComponent(typeof(Collider))]
+/// <summary>Globo de gameplay: reserva única del impacto, explosión y notificación a la partida.</summary>
+[DisallowMultipleComponent]
 public class GloboTarget : MonoBehaviour
 {
     [Header("Puntuación")]
-    [SerializeField] private int points = 1;
-
+    [SerializeField, Min(1)] private int points = 1;
     [Header("Animación y Efectos")]
-    [Tooltip("Animator del globo (si usa el prefab Globo_Explosion)")]
     [SerializeField] private Animator animator;
-
-    [Tooltip("Nombre del estado de animación de estallido")]
     [SerializeField] private string explodeAnimationState = "Globo_Explosion_Explotar_Globo";
-
-    [Tooltip("Prefab opcional de partículas de explosión")]
     [SerializeField] private GameObject explosionEffectPrefab;
-
-    [Tooltip("Tiempo de retardo antes de destruir el GameObject tras la explosión")]
-    [SerializeField] private float destroyDelay = 0.8f;
-
-    private Collider col;
-    private bool isPopped = false;
+    [Tooltip("Tiempo mínimo de permanencia. Si el clip dura más, se deja terminar.")]
+    [SerializeField, Min(.1f)] private float destroyDelay = .8f;
+    [Header("Interacción")]
+    [SerializeField] private UnityEvent onPopped = new UnityEvent();
+    public bool IsPopped => isPopped;
+    private bool isPopped;
 
     private void Awake()
     {
-        // Compensar el offset horneado en Maya (-1.45m) si no está aplicado en el prefab
-        Transform origen = transform.Find("Origen_Modelo");
-        if (origen != null && Mathf.Abs(origen.localPosition.y) < 0.1f)
-        {
-            origen.localPosition = new Vector3(origen.localPosition.x, -1.45f, origen.localPosition.z);
-        }
+        Transform origin = transform.Find("Origen_Modelo");
+        if (origin != null && Mathf.Abs(origin.localPosition.y) < .1f)
+            origin.localPosition = new Vector3(origin.localPosition.x, -1.45f, origin.localPosition.z);
 
-        // Si existe un BoxCollider residual gigante (ej. 1x1x1m), sustituirlo por un SphereCollider ajustado al globo
-        BoxCollider box = GetComponent<BoxCollider>();
-        if (box != null && box.size.sqrMagnitude > 0.4f)
+        // Desactivar el collider residual inmediatamente: Destroy lo retira al final del frame.
+        var box = GetComponent<BoxCollider>();
+        if (box != null && box.size.sqrMagnitude > .4f)
         {
+            box.enabled = false;
             Destroy(box);
-            SphereCollider sc = gameObject.AddComponent<SphereCollider>();
-            sc.isTrigger = true;
-            sc.radius = 0.22f;
-            sc.center = Vector3.zero;
-            col = sc;
+            var sphere = gameObject.AddComponent<SphereCollider>();
+            sphere.radius = .22f;
         }
-        else
+        if (GetComponent<Collider>() == null)
         {
-            col = GetComponent<Collider>();
-            if (col == null)
-            {
-                SphereCollider sc = gameObject.AddComponent<SphereCollider>();
-                sc.isTrigger = true;
-                sc.radius = 0.22f;
-                sc.center = Vector3.zero;
-                col = sc;
-            }
-            else
-            {
-                col.isTrigger = true;
-            }
+            var sphere = gameObject.AddComponent<SphereCollider>();
+            sphere.radius = .22f;
         }
-
-        if (animator == null)
-            animator = GetComponentInChildren<Animator>();
-
-        if (animator == null)
-            animator = gameObject.AddComponent<Animator>();
-
-#if UNITY_EDITOR
-        if (animator.runtimeAnimatorController == null)
-        {
-            animator.runtimeAnimatorController = UnityEditor.AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>("Assets/Controllers/Globo_Explosion.controller");
-        }
-#endif
+        foreach (var collider in GetComponentsInChildren<Collider>(true)) collider.isTrigger = true;
+        if (animator == null) animator = GetComponentInChildren<Animator>();
     }
 
-    private void OnTriggerEnter(Collider other)
+    private void OnTriggerEnter(Collider other) { Contact(other); }
+    private void OnTriggerStay(Collider other) { Contact(other); }
+    private void Contact(Collider other)
     {
-        if (isPopped) return;
-
-        // Comprobar si el que colisionó es un avión de papel
-        PaperPlane plane = other.GetComponentInParent<PaperPlane>();
-        if (plane != null)
-        {
-            PopBalloon(plane);
-        }
+        if (other == null || !other.enabled || !other.gameObject.activeInHierarchy) return;
+        var plane = other.GetComponentInParent<PaperPlane>();
+        if (plane != null) PopBalloon(plane);
     }
 
-    /// <summary>
-    /// Ejecuta el estallido del globo, suma el punto y hace desaparecer el avión.
-    /// </summary>
-    public void PopBalloon(PaperPlane plane)
+    /// <summary>Entrada conservada para los otros sistemas y los eventos existentes.</summary>
+    public void PopBalloon(PaperPlane plane) { TryPopBalloon(plane); }
+
+    public bool TryPopBalloon(PaperPlane plane)
     {
-        // Puede quedar un callback físico pendiente del mismo frame en que un pájaro lo roba.
-        if (isPopped || (plane != null && !plane.IsFlying)) return;
-        var game = GameManagerRA.Instance;
-        if (game != null && !game.TryPopBalloon(this, plane, points)) return;
+        if (!isActiveAndEnabled || isPopped || plane == null || !plane.CanInteract) return false;
+        // Marcar ANTES de avisar a puntuación, fin de avión y listeners externos.
         isPopped = true;
+        var game = GameManagerRA.Instance;
+        if (game != null && !game.TryPopBalloon(this, plane, points))
+        { isPopped = false; return false; }
 
-        // Desactivar collider para que no sume doble
-        if (col != null) col.enabled = false;
+        foreach (var collider in GetComponentsInChildren<Collider>(true)) collider.enabled = false;
+        var movement = GetComponent<BalloonAnimator>();
+        if (movement != null) movement.enabled = false;
 
-        // 1. Sumar punto al marcador
-        if (game == null && ScoreManager.Instance != null)
-        {
-            ScoreManager.Instance.AddScore(points);
-        }
-        else if (game == null)
-        {
-            Debug.Log($"[GloboTarget] ¡Globo estallado! +{points} punto(s).");
-        }
-
-        // 2. Reproducir animación de explosión del globo
-        if (animator != null && animator.runtimeAnimatorController != null)
-        {
-            animator.Play(explodeAnimationState, 0, 0f);
-        }
-        else
-        {
-            // Si no tiene esa animación (ej. globo procedural), ocultamos el modelo visual
-            MeshRenderer rend = GetComponentInChildren<MeshRenderer>();
-            if (rend != null) rend.enabled = false;
-        }
-
-        // Instanciar efecto si está asignado
-        if (explosionEffectPrefab != null)
-        {
-            Instantiate(explosionEffectPrefab, transform.position, Quaternion.identity);
-        }
-
-        // 3. Hacer desaparecer el avión de papel
-        if (game == null && plane != null)
+        if (game == null)
         {
             plane.OnHitBalloon();
+            if (ScoreManager.Instance != null) ScoreManager.Instance.AddScore(Mathf.Max(1, points));
         }
 
-        // Destruir el globo tras la animación
-        Destroy(gameObject, destroyDelay);
+        float lifetime = Mathf.Max(.1f, destroyDelay);
+        int state = Animator.StringToHash(explodeAnimationState);
+        if (animator != null && animator.isActiveAndEnabled && animator.runtimeAnimatorController != null
+            && animator.HasState(0, state))
+        {
+            animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+            animator.speed = 1;
+            animator.Play(state, 0, 0);
+            foreach (var clip in animator.runtimeAnimatorController.animationClips)
+                if (clip.name == explodeAnimationState) lifetime = Mathf.Max(lifetime, clip.length);
+        }
+        else
+        {
+            foreach (var renderer in GetComponentsInChildren<Renderer>(true)) renderer.enabled = false;
+        }
+        if (explosionEffectPrefab != null)
+        {
+            var effect = Instantiate(explosionEffectPrefab, transform.position, transform.rotation, transform.parent);
+            Destroy(effect, lifetime);
+        }
+        Destroy(gameObject, lifetime);
+        onPopped?.Invoke();
+        return true;
     }
 }

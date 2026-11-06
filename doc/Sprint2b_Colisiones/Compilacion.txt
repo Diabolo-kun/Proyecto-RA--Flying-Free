@@ -1,0 +1,4 @@
+Unity 6000.3.6f1
+Resultado: Succeeded
+Errores: 0
+Avisos: 4

@@ -95,10 +95,11 @@ public class ControlBandada : MonoBehaviour
             float angle = initial + i * 7.5f; float a = angle * Mathf.Deg2Rad;
             Vector3 local = center + new Vector3(Mathf.Cos(a) * radii.x, 0, Mathf.Sin(a) * radii.y);
             Vector3 world = gameSpace.transform.TransformPoint(local);
-            if (!PajaroOrbital.OcultoDetras(camaraAR, world)) continue;
+            float scale = Mathf.Abs(gameSpace.transform.lossyScale.x);
+            if (!PajaroOrbital.OcultoDetras(camaraAR, world, .5f * scale)) continue;
             bool libre = true;
             foreach (var bird in activos)
-                if (bird != null && Vector3.Distance(world, bird.transform.position) < separacionEntrePajaros) { libre = false; break; }
+                if (bird != null && Vector3.Distance(world, bird.transform.position) < separacionEntrePajaros * scale) { libre = false; break; }
             if (!libre) continue;
             GameObject obj = Instantiate(prefabPajaro, world, Quaternion.identity, gameSpace.transform);
             var interaction = obj.GetComponent<PajaroInteraccion>();

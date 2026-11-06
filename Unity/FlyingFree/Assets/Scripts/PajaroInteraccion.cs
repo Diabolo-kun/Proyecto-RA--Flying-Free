@@ -32,6 +32,7 @@ public class PajaroInteraccion : MonoBehaviour
     bool previousValid;
     AnimatorCullingMode originalCulling;
     float originalAnimatorSpeed = 1;
+    float SpaceScale => transform.parent != null ? Mathf.Abs(transform.parent.lossyScale.x) : 1;
 
     void Awake()
     {
@@ -61,11 +62,14 @@ public class PajaroInteraccion : MonoBehaviour
         if (plane != null) HandlePlaneCollision(plane);
     }
     public void HandlePlaneCollision(PaperPlane plane) { IntentarInterceptar(plane); }
-    public bool IntentarInterceptar(PaperPlane plane)
+    public bool IntentarInterceptar(PaperPlane plane) { return IntentarInterceptar(plane, false); }
+    // PhysX ya verificó el cruce: el avión puede haber salido del radio al final del frame.
+    internal void HandleSweptPlaneCollision(PaperPlane plane) { IntentarInterceptar(plane, true); }
+    bool IntentarInterceptar(PaperPlane plane, bool verifiedContact)
     {
-        if (!isActiveAndEnabled || OcupaMovimiento || plane == null || !plane.IsFlying
+        if (!isActiveAndEnabled || OcupaMovimiento || plane == null || !plane.CanInteract
             || (gestor != null && !gestor.PuedeSimular)) return false;
-        if (Vector3.Distance(transform.position, plane.transform.position) > radioDeteccion + .5f) return false;
+        if (!verifiedContact && Vector3.Distance(transform.position, plane.transform.position) > (radioDeteccion + .5f) * SpaceScale) return false;
         if (!plane.TryReserveForBird(this)) return false;
         objetivo = plane; reloj = 0; Estado = EstadoRobo.Aproximacion;
         var legacy = GetComponent<FlyingFree.Sprint2.BirdCarryController>();
@@ -79,7 +83,8 @@ public class PajaroInteraccion : MonoBehaviour
     }
     void LateUpdate()
     {
-        bool paused = gestor != null && !gestor.PuedeSimular;
+        var game = GameManagerRA.Instance;
+        bool paused = (gestor != null && !gestor.PuedeSimular) || (game != null && game.EsperandoSeguimiento);
         if (animator != null) animator.speed = paused ? 0 : originalAnimatorSpeed;
         if (paused) { previousValid = false; return; }
         float dt = Time.deltaTime;
@@ -91,12 +96,12 @@ public class PajaroInteraccion : MonoBehaviour
     }
     void BuscarAvion()
     {
-        PaperPlane best = null; float bestDistance = radioDeteccion * radioDeteccion;
+        PaperPlane best = null; float bestDistance = Mathf.Pow(radioDeteccion * SpaceScale, 2);
         Vector3 previousWorld = previousValid && transform.parent != null
             ? transform.parent.TransformPoint(previousLocal) : transform.position;
         foreach (var plane in PaperPlane.ActivePlanes)
         {
-            if (plane == null || !plane.IsFlying || plane.IsReservedByOtherBird(this)) continue;
+            if (plane == null || !plane.CanInteract || plane.IsReservedByOtherBird(this)) continue;
             Vector3 relative = plane.transform.position - transform.position;
             Vector3 oldRelative = plane.PreviousWorldPosition - previousWorld;
             Vector3 delta = relative - oldRelative;
@@ -104,24 +109,24 @@ public class PajaroInteraccion : MonoBehaviour
             float distance = (oldRelative + delta * t).sqrMagnitude;
             // Solo intentos desde el costado del avión. Contactos físicos también entran por el trigger.
             float lateral = relative.sqrMagnitude > .001f ? Mathf.Abs(Vector3.Dot(relative.normalized, plane.transform.forward)) : 0;
-            if (distance < bestDistance && (lateral < .8f || distance < .08f)) { best = plane; bestDistance = distance; }
+            if (distance < bestDistance && (lateral < .8f || distance < .08f * SpaceScale * SpaceScale)) { best = plane; bestDistance = distance; }
         }
         if (best != null) IntentarInterceptar(best);
     }
     void Aproximar(float dt)
     {
-        if (objetivo == null || !objetivo.IsFlying || reloj > tiempoMaximoAproximacion)
+        if (objetivo == null || !objetivo.CanInteract || reloj > tiempoMaximoAproximacion)
         { SalirSinAvion(); return; }
         // El socket está girado 90 grados respecto al pico: al alinearlo se llega de lado.
         Quaternion desired = objetivo.transform.rotation * Quaternion.Inverse(beakSocket.rotation) * transform.rotation;
         transform.rotation = Quaternion.Slerp(transform.rotation, desired, 1 - Mathf.Exp(-18 * dt));
         Vector3 grip = beakSocket.TransformPoint(objetivo.CaptureGripOffset);
         Vector3 movement = objetivo.transform.position - grip;
-        float speed = velocidadAproximacion + objetivo.WorldVelocity.magnitude;
+        float speed = velocidadAproximacion * SpaceScale + objetivo.WorldVelocity.magnitude;
         transform.position += Vector3.ClampMagnitude(movement, speed * dt);
         float gap = Vector3.Distance(beakSocket.TransformPoint(objetivo.CaptureGripOffset), objetivo.transform.position);
         float angle = Quaternion.Angle(beakSocket.rotation, objetivo.transform.rotation);
-        if (gap > .045f || angle > 12f) return;
+        if (gap > .045f * SpaceScale || angle > 12f) return;
         // La corrección máxima son 4.5 cm; es el pájaro el que termina la aproximación, nunca el avión.
         transform.rotation = desired;
         transform.position += objetivo.transform.position - beakSocket.TransformPoint(objetivo.CaptureGripOffset);
@@ -143,7 +148,7 @@ public class PajaroInteraccion : MonoBehaviour
     void Escapar(float dt)
     {
         Vector3 world = transform.parent != null ? transform.parent.TransformDirection(escapeLocal) : escapeLocal;
-        transform.position += world * carryFlySpeed * dt;
+        transform.position += world * carryFlySpeed * SpaceScale * dt;
         Camera camera = camara != null ? camara : Camera.main;
         bool fuera = camera == null;
         if (camera != null)

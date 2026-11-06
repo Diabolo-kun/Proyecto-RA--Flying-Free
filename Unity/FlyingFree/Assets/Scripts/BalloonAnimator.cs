@@ -7,6 +7,7 @@ using UnityEngine;
 /// 2. Una vez alcanzada la altura, realiza una suave flotación y oscilación (vaivén) natural.
 /// 3. Opcionalmente asigna una variación de color aleatoria al material.
 /// </summary>
+[DefaultExecutionOrder(50)]
 public class BalloonAnimator : MonoBehaviour
 {
     public enum MovementAxis
@@ -103,6 +104,15 @@ public class BalloonAnimator : MonoBehaviour
     /// </summary>
     public void AlignWithGravity()
     {
+        if (transform.parent != null && transform.parent.GetComponentInParent<TargetPlaneSpawner>() != null)
+        {
+            // El marco del generador define la vertical de la imagen. En un origen
+            // centrado en el target, Vector3.up puede ser precisamente su normal.
+            baseWorldRotation = Quaternion.LookRotation(transform.parent.up, transform.parent.forward);
+            transform.rotation = baseWorldRotation;
+            initialLocalRot = transform.localRotation;
+            return;
+        }
         Vector3 wallNormalWorld = transform.parent != null ? transform.parent.up : transform.up;
         Vector3 forwardInRoom = Vector3.ProjectOnPlane(wallNormalWorld, Vector3.up);
         if (forwardInRoom.sqrMagnitude < 0.001f && transform.parent != null)
@@ -175,8 +185,12 @@ public class BalloonAnimator : MonoBehaviour
         isRising = true;
     }
 
-    private void Update()
+    private void LateUpdate()
     {
+        // Seguir la orientación ACTUAL del marco AR. Una rotación absoluta guardada
+        // al generar el globo lo tumba de nuevo cuando Vuforia cambia la pose del padre.
+        if (alignKnotWithGravity) AlignWithGravity();
+        else baseWorldRotation = transform.parent != null ? transform.parent.rotation * initialLocalRot : initialLocalRot;
         if (isRising)
         {
             elapsedTime += Time.deltaTime;

@@ -135,8 +135,10 @@ public class GameManagerRA : MonoBehaviour
         globosContados.Add(balloon); resolviendoImpacto = true;
         try
         {
-            if (marcador != null) marcador.AddScore(Mathf.Max(1, points));
+            // Consumir el avión antes de notificar puntos: un listener de OnScoreUpdated
+            // puede intentar resolver otro contacto en el mismo frame.
             plane.OnHitBalloon();
+            if (marcador != null) marcador.AddScore(Mathf.Max(1, points));
         }
         finally { resolviendoImpacto = false; }
         EvaluarResultado(); ActualizarTextosUI(); return true;

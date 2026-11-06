@@ -1557,7 +1557,10 @@ MonoBehaviour:
   circleRadius: 1
   circleCrossDistanceY: 0.3
   distanceYJitter: 0.1
-  planeOffset: {x: 0, y: 0, z: 0}
+  uprightLayout: 1
+  fitLayoutToCamera: 1
+  maximumLayoutScale: 0.15
+  planeOffset: {x: 0, y: 0, z: 0.3}
   cornerMargin: 0.15
   cornerBottomLeft: {fileID: 0}
   cornerBottomRight: {fileID: 0}

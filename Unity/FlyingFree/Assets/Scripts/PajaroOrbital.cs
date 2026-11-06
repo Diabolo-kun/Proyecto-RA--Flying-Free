@@ -33,7 +33,8 @@ public class PajaroOrbital : MonoBehaviour
         float derivative = new Vector2(radios.x * Mathf.Sin(angulo), radios.y * Mathf.Cos(angulo)).magnitude;
         float advance = speed / Mathf.Max(.1f, derivative) * dt;
         angulo += sentido * advance; recorrido += advance; AplicarPose(false);
-        if ((recorrido >= vueltas * Mathf.PI * 2 || vida > 45) && OcultoDetras(camara, transform.position)) Destroy(gameObject);
+        float scale = transform.parent != null ? Mathf.Abs(transform.parent.lossyScale.x) : 1;
+        if ((recorrido >= vueltas * Mathf.PI * 2 || vida > 45) && OcultoDetras(camara, transform.position, .5f * scale)) Destroy(gameObject);
         if (vida > 60) Destroy(gameObject);
     }
     void AplicarPose(bool instant)
@@ -42,11 +43,11 @@ public class PajaroOrbital : MonoBehaviour
         transform.localPosition = centro + new Vector3(Mathf.Cos(angulo) * radios.x, noise, Mathf.Sin(angulo) * radios.y);
         Vector3 tangent = new Vector3(-Mathf.Sin(angulo) * radios.x * sentido, 0, Mathf.Cos(angulo) * radios.y * sentido);
         if (transform.parent != null) tangent = transform.parent.TransformDirection(tangent);
-        Quaternion target = Quaternion.LookRotation(tangent, Vector3.up);
+        Quaternion target = Quaternion.LookRotation(tangent, transform.parent != null ? transform.parent.up : Vector3.up);
         transform.rotation = instant ? target : Quaternion.Slerp(transform.rotation, target, 1 - Mathf.Exp(-8 * Time.deltaTime));
     }
-    public static bool OcultoDetras(Camera camara, Vector3 posicion)
+    public static bool OcultoDetras(Camera camara, Vector3 posicion, float margin = .5f)
     {
-        return camara != null && Vector3.Dot(camara.transform.forward, posicion - camara.transform.position) < -.5f;
+        return camara != null && Vector3.Dot(camara.transform.forward, posicion - camara.transform.position) < -margin;
     }
 }

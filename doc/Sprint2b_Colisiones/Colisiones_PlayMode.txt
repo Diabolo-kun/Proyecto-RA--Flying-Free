@@ -1,0 +1,177 @@
+Unity 6000.3.6f1 · Vuforia 10.17.4 · Tarea 4 · 2026-11-06 21:53
+PASS Avion_Cuaderno: detecta globo cruzado a 120 m/s entre frames
+PASS Avion_Cuaderno: una sola puntuación y notificación
+PASS Avion_Cuaderno: retira todos los colliders tras el acierto
+PASS Avion_Cuaderno: callbacks repetidos se ignoran
+PASS Avion_Rayo: detecta globo cruzado a 120 m/s entre frames
+PASS Avion_Rayo: una sola puntuación y notificación
+PASS Avion_Rayo: retira todos los colliders tras el acierto
+PASS Avion_Rayo: callbacks repetidos se ignoran
+PASS Avion_Brisa: detecta globo cruzado a 120 m/s entre frames
+PASS Avion_Brisa: una sola puntuación y notificación
+PASS Avion_Brisa: retira todos los colliders tras el acierto
+PASS Avion_Brisa: callbacks repetidos se ignoran
+PASS Avion_AsCorazones: detecta globo cruzado a 120 m/s entre frames
+PASS Avion_AsCorazones: una sola puntuación y notificación
+PASS Avion_AsCorazones: retira todos los colliders tras el acierto
+PASS Avion_AsCorazones: callbacks repetidos se ignoran
+PASS Avion_Estandar: detecta globo cruzado a 120 m/s entre frames
+PASS Avion_Estandar: una sola puntuación y notificación
+PASS Avion_Estandar: retira todos los colliders tras el acierto
+PASS Avion_Estandar: callbacks repetidos se ignoran
+PASS Dos globos en un paso: consume únicamente el primero del recorrido
+PASS Solapamiento inicial sin desplazamiento: detectado una sola vez
+PASS Dos aviones en el mismo globo: solo se acepta el primero
+PASS Un globo consumido no elimina al segundo avión ni repite su evento
+PASS Una vista previa sin lanzar no puede explotar globos
+PASS Un contacto sin avión no genera puntos ni explosión
+PASS Un componente de globo desactivado ignora contactos
+PASS Pared fina a alta velocidad: una pérdida y ningún punto
+PASS Los triggers decorativos no consumen aviones
+PASS El barrido respeta la matriz de colisión de capas
+PASS El barrido respeta Physics.IgnoreCollision entre objetos
+PASS Más de 32 contactos: amplía el buffer sin perder el globo válido
+PASS Objetivo clásico: evita contactos duplicados y callbacks reentrantes
+PASS Un collider hijo del avión también barre y resuelve contactos con la raíz
+PASS Los barridos respetan la escala real de avión y globo
+PASS El movimiento del globo se detiene al comenzar la explosión
+PASS Se reproduce el clip real de explosión del prefab
+PASS La explosión no se corta a 0,8 s ni sigue flotando
+PASS El globo se elimina al finalizar su animación de 5,625 s
+PASS Contacto físico pájaro-avión inicia la intercepción sin pulsar captura
+PASS Dos pájaros en contacto no pueden reservar el mismo avión
+PASS Robo real tras el contacto: una sola notificación
+PASS Un avión robado no puede explotar un globo por un callback tardío
+PASS Los colliders del avión robado están desactivados
+PASS El barrido detecta el pájaro a 120 m/s aunque el avión haya salido del radio al final del frame
+PASS Un cruce rápido de pájaro culmina en un único robo
+PASS Origen centrado en target: genera seis globos del prefab real
+PASS Origen centrado en target: ascienden por el plano de la imagen, hacia arriba en pantalla
+PASS Origen centrado en target: mantienen la profundidad y no avanzan hacia la cámara
+PASS Origen centrado en target: los nudos miran a la parte inferior de la marca
+PASS Origen centrado en target: formación sobre la marca con separación normal constante de 3 cm
+PASS Origen centrado en target: el avión y los pájaros comparten el plano de juego y la altura de la imagen
+PASS Cámara a 0,35 m: Globo_1 conserva su distancia sin salir por la normal
+PASS Cámara a 0,35 m: Globo_2 conserva su distancia sin salir por la normal
+PASS Cámara a 0,35 m: Globo_3 conserva su distancia sin salir por la normal
+PASS Cámara a 0,35 m: Globo_4 conserva su distancia sin salir por la normal
+PASS Cámara a 0,35 m: Globo_5 conserva su distancia sin salir por la normal
+PASS Cámara a 0,35 m: Globo_6 conserva su distancia sin salir por la normal
+PASS Cámara a 0,7 m: Globo_1 conserva su distancia sin salir por la normal
+PASS Cámara a 0,7 m: Globo_2 conserva su distancia sin salir por la normal
+PASS Cámara a 0,7 m: Globo_3 conserva su distancia sin salir por la normal
+PASS Cámara a 0,7 m: Globo_4 conserva su distancia sin salir por la normal
+PASS Cámara a 0,7 m: Globo_5 conserva su distancia sin salir por la normal
+PASS Cámara a 0,7 m: Globo_6 conserva su distancia sin salir por la normal
+PASS Cámara a 1,5 m: Globo_1 conserva su distancia sin salir por la normal
+PASS Cámara a 1,5 m: Globo_2 conserva su distancia sin salir por la normal
+PASS Cámara a 1,5 m: Globo_3 conserva su distancia sin salir por la normal
+PASS Cámara a 1,5 m: Globo_4 conserva su distancia sin salir por la normal
+PASS Cámara a 1,5 m: Globo_5 conserva su distancia sin salir por la normal
+PASS Cámara a 1,5 m: Globo_6 conserva su distancia sin salir por la normal
+PASS Origen centrado en target: cambiar la pose mantiene los globos paralelos a la imagen
+PASS Origen centrado en target: perder la marca oculta los globos
+PASS Origen centrado en target: recuperar la marca no duplica globos
+PASS La formación paralela conserva impacto, explosión y punto con el avión real
+PASS Marca en pared: genera seis globos del prefab real
+PASS Marca en pared: ascienden por el plano de la imagen, hacia arriba en pantalla
+PASS Marca en pared: mantienen la profundidad y no avanzan hacia la cámara
+PASS Marca en pared: los nudos miran a la parte inferior de la marca
+PASS Marca en pared: formación sobre la marca con separación normal constante de 3 cm
+PASS Marca en pared: el avión y los pájaros comparten el plano de juego y la altura de la imagen
+PASS Marca en pared: cambiar la pose mantiene los globos paralelos a la imagen
+PASS Marca en pared: perder la marca oculta los globos
+PASS Marca en pared: recuperar la marca no duplica globos
+PASS Marca inclinada: genera seis globos del prefab real
+PASS Marca inclinada: ascienden por el plano de la imagen, hacia arriba en pantalla
+PASS Marca inclinada: mantienen la profundidad y no avanzan hacia la cámara
+PASS Marca inclinada: los nudos miran a la parte inferior de la marca
+PASS Marca inclinada: formación sobre la marca con separación normal constante de 3 cm
+PASS Marca inclinada: el avión y los pájaros comparten el plano de juego y la altura de la imagen
+PASS Marca inclinada: cambiar la pose mantiene los globos paralelos a la imagen
+PASS Marca inclinada: perder la marca oculta los globos
+PASS Marca inclinada: recuperar la marca no duplica globos
+PASS Marca invertida: genera seis globos del prefab real
+PASS Marca invertida: ascienden por el plano de la imagen, hacia arriba en pantalla
+PASS Marca invertida: mantienen la profundidad y no avanzan hacia la cámara
+PASS Marca invertida: los nudos miran a la parte inferior de la marca
+PASS Marca invertida: formación sobre la marca con separación normal constante de 3 cm
+PASS Marca invertida: el avión y los pájaros comparten el plano de juego y la altura de la imagen
+PASS Marca invertida: cambiar la pose mantiene los globos paralelos a la imagen
+PASS Marca invertida: perder la marca oculta los globos
+PASS Marca invertida: recuperar la marca no duplica globos
+PASS Vertical a 0,3 m: seis globos alrededor de la marca con escala compacta
+PASS Vertical a 0,3 m: cuerpos e hilos completos visibles, sin invadir el HUD
+PASS Vertical a 0,3 m: ningún globo queda a metros del logo
+PASS Vertical a 0,3 m: avión, globo, pájaro y colliders comparten escala
+PASS Vertical a 0,3 m: mover la cámara no cambia el tamaño durante la ronda
+PASS Vertical a 0,3 m: lanza usando el controlador real hacia el globo visible
+PASS Vertical a 0,3 m: el avión nace delante del recorte de cámara
+PASS Vertical a 0,3 m: el avión realmente alcanza el globo pulsado y suma un punto
+PASS Vertical a 0,3 m: el pájaro detecta un avión a la escala compacta
+PASS Vertical a 0,3 m: el robo compacto se resuelve una sola vez
+PASS Vertical a 0,3 m: la aparición automática de pájaros funciona con la escala reducida
+PASS Vertical a 0,5 m: seis globos alrededor de la marca con escala compacta
+PASS Vertical a 0,5 m: cuerpos e hilos completos visibles, sin invadir el HUD
+PASS Vertical a 0,5 m: ningún globo queda a metros del logo
+PASS Vertical a 0,5 m: avión, globo, pájaro y colliders comparten escala
+PASS Vertical a 0,5 m: mover la cámara no cambia el tamaño durante la ronda
+PASS Vertical a 0,5 m: lanza usando el controlador real hacia el globo visible
+PASS Vertical a 0,5 m: el avión nace delante del recorte de cámara
+PASS Vertical a 0,5 m: el avión realmente alcanza el globo pulsado y suma un punto
+PASS Vertical a 0,5 m: el pájaro detecta un avión a la escala compacta
+PASS Vertical a 0,5 m: el robo compacto se resuelve una sola vez
+PASS Vertical a 0,5 m: la aparición automática de pájaros funciona con la escala reducida
+PASS Vertical a 0,8 m: seis globos alrededor de la marca con escala compacta
+PASS Vertical a 0,8 m: cuerpos e hilos completos visibles, sin invadir el HUD
+PASS Vertical a 0,8 m: ningún globo queda a metros del logo
+PASS Vertical a 0,8 m: avión, globo, pájaro y colliders comparten escala
+PASS Vertical a 0,8 m: mover la cámara no cambia el tamaño durante la ronda
+PASS Vertical a 0,8 m: lanza usando el controlador real hacia el globo visible
+PASS Vertical a 0,8 m: el avión nace delante del recorte de cámara
+PASS Vertical a 0,8 m: el avión realmente alcanza el globo pulsado y suma un punto
+PASS Vertical a 0,8 m: el pájaro detecta un avión a la escala compacta
+PASS Vertical a 0,8 m: el robo compacto se resuelve una sola vez
+PASS Vertical a 0,8 m: la aparición automática de pájaros funciona con la escala reducida
+PASS Horizontal a 0,3 m: seis globos alrededor de la marca con escala compacta
+PASS Horizontal a 0,3 m: cuerpos e hilos completos visibles, sin invadir el HUD
+PASS Horizontal a 0,3 m: ningún globo queda a metros del logo
+PASS Horizontal a 0,3 m: avión, globo, pájaro y colliders comparten escala
+PASS Horizontal a 0,3 m: mover la cámara no cambia el tamaño durante la ronda
+PASS Horizontal a 0,3 m: lanza usando el controlador real hacia el globo visible
+PASS Horizontal a 0,3 m: el avión nace delante del recorte de cámara
+PASS Horizontal a 0,3 m: el avión realmente alcanza el globo pulsado y suma un punto
+PASS Horizontal a 0,3 m: el pájaro detecta un avión a la escala compacta
+PASS Horizontal a 0,3 m: el robo compacto se resuelve una sola vez
+PASS Horizontal a 0,3 m: la aparición automática de pájaros funciona con la escala reducida
+PASS Horizontal a 0,5 m: seis globos alrededor de la marca con escala compacta
+PASS Horizontal a 0,5 m: cuerpos e hilos completos visibles, sin invadir el HUD
+PASS Horizontal a 0,5 m: ningún globo queda a metros del logo
+PASS Horizontal a 0,5 m: avión, globo, pájaro y colliders comparten escala
+PASS Horizontal a 0,5 m: mover la cámara no cambia el tamaño durante la ronda
+PASS Horizontal a 0,5 m: lanza usando el controlador real hacia el globo visible
+PASS Horizontal a 0,5 m: el avión nace delante del recorte de cámara
+PASS Horizontal a 0,5 m: el avión realmente alcanza el globo pulsado y suma un punto
+PASS Horizontal a 0,5 m: el pájaro detecta un avión a la escala compacta
+PASS Horizontal a 0,5 m: el robo compacto se resuelve una sola vez
+PASS Horizontal a 0,5 m: la aparición automática de pájaros funciona con la escala reducida
+PASS Horizontal a 0,8 m: seis globos alrededor de la marca con escala compacta
+PASS Horizontal a 0,8 m: cuerpos e hilos completos visibles, sin invadir el HUD
+PASS Horizontal a 0,8 m: ningún globo queda a metros del logo
+PASS Horizontal a 0,8 m: avión, globo, pájaro y colliders comparten escala
+PASS Horizontal a 0,8 m: mover la cámara no cambia el tamaño durante la ronda
+PASS Horizontal a 0,8 m: lanza usando el controlador real hacia el globo visible
+PASS Horizontal a 0,8 m: el avión nace delante del recorte de cámara
+PASS Horizontal a 0,8 m: el avión realmente alcanza el globo pulsado y suma un punto
+PASS Horizontal a 0,8 m: el pájaro detecta un avión a la escala compacta
+PASS Horizontal a 0,8 m: el robo compacto se resuelve una sola vez
+PASS Horizontal a 0,8 m: la aparición automática de pájaros funciona con la escala reducida
+PASS Relocalizar la referencia 4 m no cuenta como recorrido de vuelo
+PASS Registra el lanzamiento con la partida existente
+PASS Sin tracking: globo, pájaro y obstáculo ignoran todos los contactos
+PASS Tracking recuperado: el impacto vuelve a funcionar con la puntuación real
+PASS Un listener de puntuación que provoca otra colisión no duplica puntos ni globos
+PASS Transacción única compatible con el gestor de partida
+PASS El globo decisivo activa explosión y victoria sin registrar un fallo
+PASS Fin de partida: los contactos tardíos no alteran resultado ni explosiones
+RESULTADO: TODAS LAS PRUEBAS PASAN
