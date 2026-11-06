@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -16,6 +17,7 @@ using UnityEngine;
 /// Termina al tocar un PlaneTarget (éxito) o cualquier otro collider sólido (choque).
 /// </summary>
 [RequireComponent(typeof(Rigidbody))]
+[DefaultExecutionOrder(100)]
 public class PaperPlane : MonoBehaviour
 {
     [Header("Vuelo (unidades locales de la referencia por segundo)")]
@@ -36,6 +38,23 @@ public class PaperPlane : MonoBehaviour
     [SerializeField] public GameObject explosionPrefab;
 
     public bool IsCaptured { get; private set; }
+    static readonly List<PaperPlane> activePlanes = new List<PaperPlane>();
+    public static IReadOnlyList<PaperPlane> ActivePlanes => activePlanes;
+    public bool IsFlying => initialized && !finished && !IsCaptured && isActiveAndEnabled;
+    public Vector3 CaptureGripOffset { get; private set; }
+    public Vector3 PreviousWorldPosition { get; private set; }
+    public Vector3 WorldVelocity => ReferenceRotation * Quaternion.Euler(pitch, yaw, 0) * Vector3.forward * forwardSpeed;
+    bool initialized;
+    UnityEngine.Object reservedByBird;
+    void OnEnable() { if (!activePlanes.Contains(this)) activePlanes.Add(this); }
+    void OnDisable() { activePlanes.Remove(this); reservedByBird = null; }
+    public bool IsReservedByOtherBird(UnityEngine.Object bird) => reservedByBird != null && reservedByBird != bird;
+    public bool TryReserveForBird(UnityEngine.Object bird)
+    {
+        if (!IsFlying || bird == null || IsReservedByOtherBird(bird)) return false;
+        reservedByBird = bird; return true;
+    }
+    public void ReleaseBirdReservation(UnityEngine.Object bird) { if (reservedByBird == bird) reservedByBird = null; }
 
     /// <summary>Se dispara una vez: true = tocó el objetivo, false = chocó o se acabó el tiempo.</summary>
     public event Action<bool> OnFinished;
@@ -56,6 +75,8 @@ public class PaperPlane : MonoBehaviour
     private void Awake()
     {
         rb = GetComponent<Rigidbody>();
+        var originalMotor = GetComponent<FlyingFree.Sprint2.PaperPlaneMotor>();
+        if (originalMotor != null && originalMotor.definition != null) CaptureGripOffset = originalMotor.definition.gripOffset;
         rb.isKinematic = true;
         rb.useGravity = false;
         // El movimiento se hace por Transform en LateUpdate, no por física
@@ -92,6 +113,7 @@ public class PaperPlane : MonoBehaviour
     /// </summary>
     public void Initialize(Vector3 worldDirection, Transform referenceFrame)
     {
+        initialized = true;
         reference = referenceFrame != null
             ? referenceFrame
             : (ARGameSpace.Instance != null ? ARGameSpace.Instance.transform : null);
@@ -113,6 +135,7 @@ public class PaperPlane : MonoBehaviour
             : transform.position;
 
         ApplyPose();
+        PreviousWorldPosition = transform.position;
     }
 
     /// <summary>Modelo visible del avión elegido en la escena de la marca.</summary>
@@ -130,6 +153,9 @@ public class PaperPlane : MonoBehaviour
 
     private void LateUpdate()
     {
+        if (!initialized || IsCaptured) return;
+        // Reproyectar la posición anterior con la pose ACTUAL del marcador evita falsos barridos al relocalizar AR.
+        PreviousWorldPosition = reference != null ? reference.TransformPoint(localPosition) : localPosition;
         // Limitamos el dt para que un tirón de frame no atraviese una pared
         float dt = Mathf.Min(Time.deltaTime, 0.05f);
 
@@ -218,21 +244,27 @@ public class PaperPlane : MonoBehaviour
     /// </summary>
     public void CaptureByBird(Transform birdBeak)
     {
-        if (finished || IsCaptured) return;
+        TryCaptureByBird(birdBeak, null);
+    }
+
+    public bool TryCaptureByBird(Transform birdBeak, UnityEngine.Object bird)
+    {
+        if (!IsFlying || birdBeak == null || IsReservedByOtherBird(bird)) return false;
         IsCaptured = true;
         finished = true;
+        reservedByBird = null;
         steerInput = Vector2.zero;
 
         // Desactivar físicas
-        if (rb != null) rb.isKinematic = true;
+        if (rb != null) { rb.isKinematic = true; rb.detectCollisions = false; }
+        foreach (Collider col in GetComponentsInChildren<Collider>()) col.enabled = false;
 
         // Emparentar al pico del pájaro
-        transform.SetParent(birdBeak, false);
-        transform.localPosition = Vector3.zero;
-        transform.localRotation = Quaternion.identity;
+        // Conserva posición, giro y escala mundiales: el cambio de padre no provoca ningún salto.
+        transform.SetParent(birdBeak, true);
 
         OnFinished?.Invoke(false);
-        Destroy(gameObject, 6f);
+        return true;
     }
 
     /// <summary>

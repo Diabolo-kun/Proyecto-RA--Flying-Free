@@ -1,227 +1,52 @@
-
 using UnityEngine;
 
+/// <summary>Patrulla; cede todo el movimiento durante el robo.</summary>
+[DefaultExecutionOrder(50)]
 public class PajaroOrbital : MonoBehaviour
 {
-    private Camera camaraAR;
-    private Vector3 centroLocal;
-
-    private float radio;
-    private float velocidad;
-    private float altura;
-    private float oscilacion;
-    private float anguloInicial;
-    private float gradosRecorridos;
-
-    private int vueltas;
-    private int sentido;
-    private bool iniciado;
-
-    // NUEVO: variaciones naturales
-    private float variacionVelocidad = 0.20f;
-    private float frecuenciaVelocidad = 0.30f;
-    private float frecuenciaAltura = 0.35f;
-
-    // Cada pajaro tiene un patron diferente
-    private float semillaVelocidad;
-    private float semillaAltura;
-
-    public void ConfigurarVariaciones(
-        float variacion,
-        float frecuenciaCambioVelocidad,
-        float frecuenciaCambioAltura)
+    Camera camara;
+    ControlBandada gestor;
+    PajaroInteraccion interaccion;
+    Vector3 centro;
+    Vector2 radios;
+    float velocidad, oscilacion, angulo, recorrido, vida;
+    float variacion = .2f, frecuenciaVelocidad = .3f, frecuenciaAltura = .35f, semilla;
+    int vueltas, sentido;
+    bool iniciado;
+    public void ConfigurarVariaciones(float v, float f, float h)
+    { variacion = Mathf.Clamp(v, 0, .5f); frecuenciaVelocidad = Mathf.Max(.01f, f); frecuenciaAltura = Mathf.Max(.01f, h); }
+    public void Iniciar(Camera cam, Vector3 centroLocal, float radioVuelo, float velocidadVuelo,
+        float alturaVuelo, float oscilacionVuelo, float anguloInicial, int numeroVueltas, int direccion, ControlBandada gestor = null)
     {
-        variacionVelocidad = Mathf.Clamp(
-            variacion, 0f, 0.5f);
-
-        frecuenciaVelocidad = Mathf.Max(
-            0.01f, frecuenciaCambioVelocidad);
-
-        frecuenciaAltura = Mathf.Max(
-            0.01f, frecuenciaCambioAltura);
+        camara = cam; this.gestor = gestor; centro = centroLocal + Vector3.up * alturaVuelo;
+        radios = gestor != null ? gestor.GetOrbitRadii() : Vector2.one * Mathf.Max(.2f, radioVuelo);
+        velocidad = Mathf.Max(.05f, velocidadVuelo); oscilacion = oscilacionVuelo;
+        angulo = anguloInicial * Mathf.Deg2Rad; vueltas = Mathf.Max(1, numeroVueltas); sentido = direccion < 0 ? -1 : 1;
+        recorrido = vida = 0; semilla = Random.Range(0, 1000f); iniciado = true;
+        interaccion = GetComponent<PajaroInteraccion>(); AplicarPose(true);
     }
-
-    private ControlBandada gestorBandada;
-
-    public void Iniciar(
-        Camera camara,
-        Vector3 centro,
-        float radioVuelo,
-        float velocidadVuelo,
-        float alturaVuelo,
-        float oscilacionVuelo,
-        float angulo,
-        int numeroVueltas,
-        int direccion,
-        ControlBandada gestor = null)
+    void LateUpdate()
     {
-        camaraAR = camara;
-        centroLocal = centro;
-        gestorBandada = gestor;
-
-        radio = Mathf.Max(0.2f, radioVuelo);
-        velocidad = Mathf.Max(0.05f, velocidadVuelo);
-        altura = alturaVuelo;
-        oscilacion = oscilacionVuelo;
-
-        anguloInicial = angulo;
-        vueltas = Mathf.Max(1, numeroVueltas);
-        sentido = direccion < 0 ? -1 : 1;
-
-        gradosRecorridos = 0f;
-
-        // Valores aleatorios independientes
-        semillaVelocidad = Random.Range(0f, 1000f);
-        semillaAltura = Random.Range(1000f, 2000f);
-
-        transform.localPosition =
-            CalcularPosicion(anguloInicial);
-
-        iniciado = true;
+        if (!iniciado || (gestor != null && !gestor.PuedeSimular) || (interaccion != null && interaccion.OcupaMovimiento)) return;
+        float dt = Time.deltaTime; vida += dt;
+        float speed = velocidad * (1 + (Mathf.PerlinNoise(semilla, vida * frecuenciaVelocidad) * 2 - 1) * variacion);
+        float derivative = new Vector2(radios.x * Mathf.Sin(angulo), radios.y * Mathf.Cos(angulo)).magnitude;
+        float advance = speed / Mathf.Max(.1f, derivative) * dt;
+        angulo += sentido * advance; recorrido += advance; AplicarPose(false);
+        if ((recorrido >= vueltas * Mathf.PI * 2 || vida > 45) && OcultoDetras(camara, transform.position)) Destroy(gameObject);
+        if (vida > 60) Destroy(gameObject);
     }
-
-    private Vector3 CalcularPosicion(float angulo)
+    void AplicarPose(bool instant)
     {
-        float rad = angulo * Mathf.Deg2Rad;
-
-        // NUEVO: subida y bajada suaves
-        float ruidoAltura = Mathf.PerlinNoise(
-            semillaAltura,
-            Time.time * frecuenciaAltura
-        );
-
-        // Convertimos el valor 0..1 a -1..1
-        float desplazamientoVertical =
-            (ruidoAltura * 2f - 1f) * oscilacion;
-
-        return centroLocal + new Vector3(
-            Mathf.Cos(rad) * radio,
-            altura + desplazamientoVertical,
-            Mathf.Sin(rad) * radio
-        );
+        float noise = (Mathf.PerlinNoise(semilla + 15, vida * frecuenciaAltura) * 2 - 1) * oscilacion;
+        transform.localPosition = centro + new Vector3(Mathf.Cos(angulo) * radios.x, noise, Mathf.Sin(angulo) * radios.y);
+        Vector3 tangent = new Vector3(-Mathf.Sin(angulo) * radios.x * sentido, 0, Mathf.Cos(angulo) * radios.y * sentido);
+        if (transform.parent != null) tangent = transform.parent.TransformDirection(tangent);
+        Quaternion target = Quaternion.LookRotation(tangent, Vector3.up);
+        transform.rotation = instant ? target : Quaternion.Slerp(transform.rotation, target, 1 - Mathf.Exp(-8 * Time.deltaTime));
     }
-
-    private void Update()
+    public static bool OcultoDetras(Camera camara, Vector3 posicion)
     {
-        if (!iniciado)
-            return;
-
-        // Si tenemos un gestor de bandada vinculado al GameSpace, seguir suavemente el pasillo
-        if (gestorBandada != null)
-        {
-            Vector3 centroObjetivo = gestorBandada.GetCorridorCenterLocal();
-            centroLocal = Vector3.Lerp(centroLocal, centroObjetivo, 2f * Time.deltaTime);
-        }
-
-        // NUEVO: velocidad que cambia suavemente
-        float ruidoVelocidad = Mathf.PerlinNoise(
-            semillaVelocidad,
-            Time.time * frecuenciaVelocidad
-        );
-
-        float factorVelocidad = 1f +
-            (ruidoVelocidad * 2f - 1f) *
-            variacionVelocidad;
-
-        float velocidadActual =
-            velocidad * factorVelocidad;
-
-        // Avanzar usando la velocidad variable
-        float incremento =
-            velocidadActual / radio *
-            Mathf.Rad2Deg * Time.deltaTime;
-
-        gradosRecorridos += incremento;
-
-        float angulo =
-            anguloInicial +
-            sentido * gradosRecorridos;
-
-        // Posicion con altura variable
-        transform.localPosition =
-            CalcularPosicion(angulo);
-
-        // Orientacion del pajaro
-        float rad = angulo * Mathf.Deg2Rad;
-
-        Vector3 tangenteLocal = new Vector3(
-            -Mathf.Sin(rad) * sentido,
-            0f,
-            Mathf.Cos(rad) * sentido
-        );
-
-        Vector3 direccionMundo = transform.parent != null
-            ? transform.parent.TransformDirection(tangenteLocal)
-            : tangenteLocal;
-
-        if (direccionMundo.sqrMagnitude > 0.001f)
-        {
-            Quaternion objetivo = Quaternion.LookRotation(
-                direccionMundo,
-                Vector3.up
-            );
-
-            transform.rotation = Quaternion.Slerp(
-                transform.rotation,
-                objetivo,
-                8f * Time.deltaTime
-            );
-        }
-
-        // Completar las vueltas asignadas
-        if (gradosRecorridos < vueltas * 360f)
-            return;
-
-        // Desaparecer SOLAMENTE detras del jugador
-        if (OcultoDetras(
-                camaraAR, transform.position))
-        {
-            Destroy(gameObject);
-        }
-    }
-
-    public static bool OcultoDetras(
-        Camera camara, Vector3 posicion)
-    {
-        if (camara == null)
-            return false;
-
-        Vector3 haciaPajaro =
-            posicion - camara.transform.position;
-
-        Vector3 direccionHorizontal =
-            Vector3.ProjectOnPlane(
-                haciaPajaro, Vector3.up);
-
-        Vector3 miradaHorizontal =
-            Vector3.ProjectOnPlane(
-                camara.transform.forward, Vector3.up);
-
-        if (direccionHorizontal.sqrMagnitude < 0.001f ||
-            miradaHorizontal.sqrMagnitude < 0.001f)
-            return false;
-
-        float producto = Vector3.Dot(
-            direccionHorizontal.normalized,
-            miradaHorizontal.normalized
-        );
-
-        // Tiene que estar detras
-        if (producto > -0.3f)
-            return false;
-
-        Vector3 pantalla =
-            camara.WorldToViewportPoint(posicion);
-
-        const float margen = 0.12f;
-
-        bool fueraPantalla =
-            pantalla.z <= 0f ||
-            pantalla.x < -margen ||
-            pantalla.x > 1f + margen ||
-            pantalla.y < -margen ||
-            pantalla.y > 1f + margen;
-
-        return fueraPantalla;
+        return camara != null && Vector3.Dot(camara.transform.forward, posicion - camara.transform.position) < -.5f;
     }
 }

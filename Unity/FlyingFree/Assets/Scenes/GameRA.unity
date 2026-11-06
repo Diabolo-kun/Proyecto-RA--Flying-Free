@@ -1970,7 +1970,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 92bbc8bc7b21e1c48afa5fdfa7aef681, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ControlBandada
-  testModeWithoutVuforia: 1
+  testModeWithoutVuforia: 0
   dibujarGizmos: 1
   camaraAR: {fileID: 369610904}
   prefabPajaro: {fileID: 9081416281889351582, guid: 6fa3b6ebe31990d4da52d03667127387, type: 3}
