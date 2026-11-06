@@ -1,0 +1,88 @@
+PASS Existe el prefab low poly original
+PASS Aparición aleatoria fuera de vista y límite de tres pájaros
+PASS El spawn manual también respeta el máximo
+PASS Vuelo orbital real con oscilación y avance
+PASS Pérdida de tracking pausa el vuelo aunque la marca se hubiese visto antes
+PASS El vuelo se reanuda al recuperar tracking
+PASS Limpieza completa de la bandada
+PASS Avion_Cuaderno: socket lateral auténtico
+PASS Avion_Cuaderno: reserva exclusiva frente a otro pájaro
+PASS Avion_Cuaderno: intercepción y robo reales en Play Mode
+PASS Avion_Cuaderno: una sola notificación de avión perdido
+PASS Avion_Cuaderno: conserva el tamaño al sujetarlo
+PASS Avion_Cuaderno: sujeto al socket animado
+PASS Avion_Cuaderno: agarre desde el costado y no desde atrás
+PASS Avion_Cuaderno: se reproduce la animación de captura
+PASS Avion_Cuaderno: agarre alineado sin salto de posición
+PASS Avion_Cuaderno: el avión robado no explota globos ni suma puntos
+PASS Avion_Cuaderno: collider desactivado durante el robo
+PASS Avion_Cuaderno: callbacks repetidos no duplican la pérdida
+PASS Avion_Cuaderno: huida con el avión
+PASS Avion_Cuaderno: desaparecen juntos sin dejar el avión huérfano
+PASS Avion_Rayo: socket lateral auténtico
+PASS Avion_Rayo: reserva exclusiva frente a otro pájaro
+PASS Avion_Rayo: intercepción y robo reales en Play Mode
+PASS Avion_Rayo: una sola notificación de avión perdido
+PASS Avion_Rayo: conserva el tamaño al sujetarlo
+PASS Avion_Rayo: sujeto al socket animado
+PASS Avion_Rayo: agarre desde el costado y no desde atrás
+PASS Avion_Rayo: se reproduce la animación de captura
+PASS Avion_Rayo: agarre alineado sin salto de posición
+PASS Avion_Rayo: el avión robado no explota globos ni suma puntos
+PASS Avion_Rayo: collider desactivado durante el robo
+PASS Avion_Rayo: callbacks repetidos no duplican la pérdida
+PASS Avion_Rayo: huida con el avión
+PASS Avion_Rayo: desaparecen juntos sin dejar el avión huérfano
+PASS Avion_Brisa: socket lateral auténtico
+PASS Avion_Brisa: reserva exclusiva frente a otro pájaro
+PASS Avion_Brisa: intercepción y robo reales en Play Mode
+PASS Avion_Brisa: una sola notificación de avión perdido
+PASS Avion_Brisa: conserva el tamaño al sujetarlo
+PASS Avion_Brisa: sujeto al socket animado
+PASS Avion_Brisa: agarre desde el costado y no desde atrás
+PASS Avion_Brisa: se reproduce la animación de captura
+PASS Avion_Brisa: agarre alineado sin salto de posición
+PASS Avion_Brisa: el avión robado no explota globos ni suma puntos
+PASS Avion_Brisa: collider desactivado durante el robo
+PASS Avion_Brisa: callbacks repetidos no duplican la pérdida
+PASS Avion_Brisa: huida con el avión
+PASS Avion_Brisa: desaparecen juntos sin dejar el avión huérfano
+PASS Avion_AsCorazones: socket lateral auténtico
+PASS Avion_AsCorazones: reserva exclusiva frente a otro pájaro
+PASS Avion_AsCorazones: intercepción y robo reales en Play Mode
+PASS Avion_AsCorazones: una sola notificación de avión perdido
+PASS Avion_AsCorazones: conserva el tamaño al sujetarlo
+PASS Avion_AsCorazones: sujeto al socket animado
+PASS Avion_AsCorazones: agarre desde el costado y no desde atrás
+PASS Avion_AsCorazones: se reproduce la animación de captura
+PASS Avion_AsCorazones: agarre alineado sin salto de posición
+PASS Avion_AsCorazones: el avión robado no explota globos ni suma puntos
+PASS Avion_AsCorazones: collider desactivado durante el robo
+PASS Avion_AsCorazones: callbacks repetidos no duplican la pérdida
+PASS Avion_AsCorazones: huida con el avión
+PASS Avion_AsCorazones: desaparecen juntos sin dejar el avión huérfano
+PASS Avion_Estandar: socket lateral auténtico
+PASS Avion_Estandar: reserva exclusiva frente a otro pájaro
+PASS Avion_Estandar: intercepción y robo reales en Play Mode
+PASS Avion_Estandar: una sola notificación de avión perdido
+PASS Avion_Estandar: conserva el tamaño al sujetarlo
+PASS Avion_Estandar: sujeto al socket animado
+PASS Avion_Estandar: agarre desde el costado y no desde atrás
+PASS Avion_Estandar: se reproduce la animación de captura
+PASS Avion_Estandar: agarre alineado sin salto de posición
+PASS Avion_Estandar: el avión robado no explota globos ni suma puntos
+PASS Avion_Estandar: collider desactivado durante el robo
+PASS Avion_Estandar: callbacks repetidos no duplican la pérdida
+PASS Avion_Estandar: huida con el avión
+PASS Avion_Estandar: desaparecen juntos sin dejar el avión huérfano
+PASS Inicio del intento cancelable
+PASS Desactivar un pájaro libera su reserva
+PASS Objetivo destruido durante aproximación: huida y limpieza sin excepciones
+PASS Registro de aviones limpio después de destruirlos
+PASS Intercepción automática a 40 m/s sin pulsar captura
+PASS Limpieza del robo a alta velocidad
+PASS Preparación del robo para relocalización AR
+PASS Relocalización AR conserva el agarre lateral sin saltos
+PASS Bandada conectada a una partida en curso
+PASS Fin de partida elimina pájaros e impide nuevas apariciones
+RESULTADO: TODAS LAS PRUEBAS PASAN

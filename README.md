@@ -1,5 +1,9 @@
 # Proyecto-RA--Flying-Free
 
+## Sprint 2b: pájaros
+
+La escena `GameRA` incluye aparición aleatoria, patrulla, intercepción lateral del avión y huida con él. [Guía de integración y resultados de las pruebas](doc/Sprint2b_Pajaros/LEEME.md).
+
 ## Tráiler en realidad aumentada (Sprint 2)
 
 El menú incluye **TRÁILER**, que abre una escena de Vuforia para reproducir el vídeo sobre una nueva marca. Incluye pausa/reanudación, saltos de 10 segundos, barra de progreso, repetición y regreso al menú. Al perder la marca se pausa y conserva el punto de reproducción.

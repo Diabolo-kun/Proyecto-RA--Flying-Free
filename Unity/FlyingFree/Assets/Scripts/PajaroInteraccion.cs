@@ -1,188 +1,167 @@
 using UnityEngine;
 
-/// <summary>
-/// Gestiona las colisiones e interacciones entre el pájaro y el avión de papel:
-/// - Caso 1 (Pájaro atrapa avión): El pájaro agarra el avión con el pico y se lo lleva volando.
-/// - Caso 2 (Avión embiste al pájaro): El avión explota en un choque cómico.
-/// </summary>
+/// <summary>Intercepción lateral, agarre exclusivo y huida. Único dueño del movimiento durante el robo.</summary>
+[DefaultExecutionOrder(200)]
 [RequireComponent(typeof(Collider))]
 public class PajaroInteraccion : MonoBehaviour
 {
-    [Header("Pico / Garra de Agarre")]
-    [Tooltip("Transform del pico o socket donde se sujetará el avión al atraparlo")]
+    public enum EstadoRobo { Patrulla, Aproximacion, Transportando, Saliendo }
+    [Header("Socket lateral del ala (PaperGrip_SOCKET)")]
     public Transform beakSocket;
-
-    [Header("Animación")]
-    [SerializeField] private Animator animator;
-    [SerializeField] private string captureAnimState = "Capture";
-
-    [Header("Vuelo tras captura")]
-    [SerializeField] private float carryFlySpeed = 2.5f;
-
-    private bool hasCapturedPlane = false;
-    public bool HasCapturedPlane => hasCapturedPlane;
-    private PaperPlane capturedPlane = null;
-    private Collider birdCollider;
-
-    private void Awake()
-    {
-        birdCollider = GetComponent<Collider>();
-        birdCollider.isTrigger = true;
-
-        if (animator == null)
-            animator = GetComponentInChildren<Animator>();
-
-#if UNITY_EDITOR
-        if (animator != null && animator.runtimeAnimatorController == null)
-        {
-            animator.runtimeAnimatorController = UnityEditor.AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>("Assets/Animations/Pajaro.controller");
-        }
-#endif
-
-        if (beakSocket == null)
-        {
-            // Buscar hijo llamado gripSocket o Pico en cualquier nivel de la jerarquía
-            foreach (Transform t in GetComponentsInChildren<Transform>(true))
-            {
-                if (t.name.Equals("gripSocket", System.StringComparison.OrdinalIgnoreCase) ||
-                    t.name.Equals("Pico", System.StringComparison.OrdinalIgnoreCase))
-                {
-                    beakSocket = t;
-                    break;
-                }
-            }
-            if (beakSocket == null) beakSocket = transform;
-        }
-    }
-
-    private void OnTriggerEnter(Collider other)
-    {
-        if (hasCapturedPlane) return;
-
-        PaperPlane plane = other.GetComponentInParent<PaperPlane>();
-        if (plane != null)
-        {
-            HandlePlaneCollision(plane);
-        }
-    }
-
-    /// <summary>
-    /// Gestiona la colisión con el avión desde cualquier lado del trigger.
-    /// </summary>
-    public void HandlePlaneCollision(PaperPlane plane)
-    {
-        if (hasCapturedPlane || plane == null || plane.IsCaptured) return;
-
-        // Determinar si el pájaro caza al avión o el avión embiste al pájaro:
-        Vector3 haciaAvion = (plane.transform.position - transform.position).normalized;
-        float alineacionPajaro = Vector3.Dot(transform.forward, haciaAvion);
-
-        // Si el pájaro encara al avión de frente (caza intencional):
-        if (alineacionPajaro > 0.2f)
-        {
-            PajaroAtrapaAvion(plane);
-        }
-        else
-        {
-            // Si el avión lo embiste de lado/atrás: el avión explota
-            AvionEmbistePajaro(plane);
-        }
-    }
-
-    [Header("Efectos Choque")]
-    [Tooltip("Prefab opcional para futuras partículas o animación de plumas al chocar")]
+    [SerializeField] Animator animator;
+    [SerializeField] string captureAnimState = "Capture";
+    [Header("Intercepción")]
+    [Min(.1f)] public float radioDeteccion = .9f;
+    [Min(.1f)] public float velocidadAproximacion = 3.5f;
+    [Min(.1f)] public float tiempoMaximoAproximacion = 1.5f;
+    [Header("Huida")]
+    [SerializeField, Min(.1f)] float carryFlySpeed = 2.5f;
+    [Min(.1f)] public float tiempoMinimoHuida = 1.5f;
+    [Min(1)] public float tiempoMaximoHuida = 5f;
+    [Tooltip("Conservado por compatibilidad. Los pájaros roban; no hacen explotar el avión.")]
     public GameObject plumasEffectPrefab;
+    public EstadoRobo Estado { get; private set; }
+    public bool HasCapturedPlane => Estado == EstadoRobo.Transportando;
+    public bool OcupaMovimiento => Estado != EstadoRobo.Patrulla;
+    public PaperPlane AvionRobado => llevado;
+    ControlBandada gestor;
+    Camera camara;
+    PaperPlane objetivo, llevado;
+    float reloj;
+    Vector3 escapeLocal, previousLocal;
+    bool previousValid;
+    AnimatorCullingMode originalCulling;
+    float originalAnimatorSpeed = 1;
 
-    /// <summary>
-    /// El pájaro intercepta el avión, lo atrapa con el pico y se lo lleva volando.
-    /// </summary>
-    private void PajaroAtrapaAvion(PaperPlane plane)
+    void Awake()
     {
-        hasCapturedPlane = true;
-        capturedPlane = plane;
-
-        Debug.Log("[PajaroInteraccion] ¡El pájaro ha atrapado el avión con el pico!");
-
+        foreach (var col in GetComponentsInChildren<Collider>()) col.isTrigger = true;
+        if (animator == null) animator = GetComponentInChildren<Animator>();
         if (animator != null)
         {
-            animator.CrossFadeInFixedTime(captureAnimState, 0.08f);
+            originalCulling = animator.cullingMode;
+            originalAnimatorSpeed = animator.speed;
+            // El socket animado debe evaluarse incluso cuando nace detrás del usuario.
+            animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
         }
-
-        // Sujetar el avión en el pico del pájaro y desactivar su vuelo libre
-        plane.CaptureByBird(beakSocket != null ? beakSocket : transform);
+        foreach (Transform child in GetComponentsInChildren<Transform>(true))
+            if (child.name == "PaperGrip_SOCKET" || child.name == "gripSocket") { beakSocket = child; break; }
+        if (beakSocket == null) beakSocket = transform;
     }
-
-    /// <summary>
-    /// El avión choca contra el pájaro y estalla en pedazos cómicos, y el pájaro también desaparece.
-    /// </summary>
-    private void AvionEmbistePajaro(PaperPlane plane)
+    public void Configurar(ControlBandada manager, Camera camera)
     {
-        Debug.Log("[PajaroInteraccion] ¡El avión ha chocado contra el pájaro y ha explotado!");
-
-        // 1. Punto de impacto exacto entre avión y pájaro
-        Vector3 puntoImpacto = plane != null 
-            ? (plane.transform.position + transform.position) * 0.5f 
-            : transform.position;
-
-        // 2. Hace explotar el avión con la animación Explosion_Choque directamente en el punto de choque
-        if (plane != null)
-        {
-            plane.ExplodeInAir(puntoImpacto);
-        }
-
-        // 3. Preparado para la futura animación de plumas o partículas del pájaro
-        if (plumasEffectPrefab != null)
-        {
-            Instantiate(plumasEffectPrefab, transform.position, Quaternion.identity);
-        }
-        OnBirdHit();
-
-        // 4. El pájaro también desaparece de inmediato tras el choque
-        DesaparecerPajaro();
+        gestor = manager; camara = camera;
+        // El controlador de la demo antigua solo trabaja con PaperPlaneMotor.
+        var legacy = GetComponent<FlyingFree.Sprint2.BirdCarryController>();
+        if (legacy != null) legacy.enabled = false;
     }
-
-    /// <summary>
-    /// Oculta y destruye el pájaro tras ser embestido por el avión.
-    /// </summary>
+    void OnTriggerEnter(Collider other)
+    {
+        var plane = other.GetComponentInParent<PaperPlane>();
+        if (plane != null) HandlePlaneCollision(plane);
+    }
+    public void HandlePlaneCollision(PaperPlane plane) { IntentarInterceptar(plane); }
+    public bool IntentarInterceptar(PaperPlane plane)
+    {
+        if (!isActiveAndEnabled || OcupaMovimiento || plane == null || !plane.IsFlying
+            || (gestor != null && !gestor.PuedeSimular)) return false;
+        if (Vector3.Distance(transform.position, plane.transform.position) > radioDeteccion + .5f) return false;
+        if (!plane.TryReserveForBird(this)) return false;
+        objetivo = plane; reloj = 0; Estado = EstadoRobo.Aproximacion;
+        var legacy = GetComponent<FlyingFree.Sprint2.BirdCarryController>();
+        if (legacy != null) legacy.enabled = false;
+        if (animator != null && animator.runtimeAnimatorController != null && animator.HasState(0, Animator.StringToHash(captureAnimState)))
+        {
+            // La maniobra es breve en gameplay; la pose lateral de agarre queda al contacto.
+            animator.CrossFadeInFixedTime(captureAnimState, .08f, 0, .3f);
+        }
+        return true;
+    }
+    void LateUpdate()
+    {
+        bool paused = gestor != null && !gestor.PuedeSimular;
+        if (animator != null) animator.speed = paused ? 0 : originalAnimatorSpeed;
+        if (paused) { previousValid = false; return; }
+        float dt = Time.deltaTime;
+        reloj += dt;
+        if (Estado == EstadoRobo.Patrulla) BuscarAvion();
+        else if (Estado == EstadoRobo.Aproximacion) Aproximar(dt);
+        else Escapar(dt);
+        previousLocal = transform.localPosition; previousValid = true;
+    }
+    void BuscarAvion()
+    {
+        PaperPlane best = null; float bestDistance = radioDeteccion * radioDeteccion;
+        Vector3 previousWorld = previousValid && transform.parent != null
+            ? transform.parent.TransformPoint(previousLocal) : transform.position;
+        foreach (var plane in PaperPlane.ActivePlanes)
+        {
+            if (plane == null || !plane.IsFlying || plane.IsReservedByOtherBird(this)) continue;
+            Vector3 relative = plane.transform.position - transform.position;
+            Vector3 oldRelative = plane.PreviousWorldPosition - previousWorld;
+            Vector3 delta = relative - oldRelative;
+            float t = delta.sqrMagnitude > .000001f ? Mathf.Clamp01(-Vector3.Dot(oldRelative, delta) / delta.sqrMagnitude) : 1;
+            float distance = (oldRelative + delta * t).sqrMagnitude;
+            // Solo intentos desde el costado del avión. Contactos físicos también entran por el trigger.
+            float lateral = relative.sqrMagnitude > .001f ? Mathf.Abs(Vector3.Dot(relative.normalized, plane.transform.forward)) : 0;
+            if (distance < bestDistance && (lateral < .8f || distance < .08f)) { best = plane; bestDistance = distance; }
+        }
+        if (best != null) IntentarInterceptar(best);
+    }
+    void Aproximar(float dt)
+    {
+        if (objetivo == null || !objetivo.IsFlying || reloj > tiempoMaximoAproximacion)
+        { SalirSinAvion(); return; }
+        // El socket está girado 90 grados respecto al pico: al alinearlo se llega de lado.
+        Quaternion desired = objetivo.transform.rotation * Quaternion.Inverse(beakSocket.rotation) * transform.rotation;
+        transform.rotation = Quaternion.Slerp(transform.rotation, desired, 1 - Mathf.Exp(-18 * dt));
+        Vector3 grip = beakSocket.TransformPoint(objetivo.CaptureGripOffset);
+        Vector3 movement = objetivo.transform.position - grip;
+        float speed = velocidadAproximacion + objetivo.WorldVelocity.magnitude;
+        transform.position += Vector3.ClampMagnitude(movement, speed * dt);
+        float gap = Vector3.Distance(beakSocket.TransformPoint(objetivo.CaptureGripOffset), objetivo.transform.position);
+        float angle = Quaternion.Angle(beakSocket.rotation, objetivo.transform.rotation);
+        if (gap > .045f || angle > 12f) return;
+        // La corrección máxima son 4.5 cm; es el pájaro el que termina la aproximación, nunca el avión.
+        transform.rotation = desired;
+        transform.position += objetivo.transform.position - beakSocket.TransformPoint(objetivo.CaptureGripOffset);
+        if (!objetivo.TryCaptureByBird(beakSocket, this)) { SalirSinAvion(); return; }
+        llevado = objetivo; objetivo = null; Estado = EstadoRobo.Transportando; reloj = 0;
+        PrepararHuida();
+    }
+    void PrepararHuida()
+    {
+        Vector3 up = transform.parent != null ? transform.parent.up : Vector3.up;
+        Vector3 direction = (transform.forward + up * .65f).normalized;
+        escapeLocal = transform.parent != null ? transform.parent.InverseTransformDirection(direction) : direction;
+    }
+    void SalirSinAvion()
+    {
+        if (objetivo != null) objetivo.ReleaseBirdReservation(this);
+        objetivo = null; Estado = EstadoRobo.Saliendo; reloj = 0; PrepararHuida();
+    }
+    void Escapar(float dt)
+    {
+        Vector3 world = transform.parent != null ? transform.parent.TransformDirection(escapeLocal) : escapeLocal;
+        transform.position += world * carryFlySpeed * dt;
+        Camera camera = camara != null ? camara : Camera.main;
+        bool fuera = camera == null;
+        if (camera != null)
+        {
+            Vector3 p = camera.WorldToViewportPoint(transform.position);
+            fuera = p.z <= 0 || p.x < -.2f || p.x > 1.2f || p.y < -.2f || p.y > 1.2f;
+        }
+        if ((reloj >= tiempoMinimoHuida && fuera) || reloj >= tiempoMaximoHuida) DesaparecerPajaro();
+    }
     public void DesaparecerPajaro()
     {
-        // Desactivar colliders para no generar más eventos
-        foreach (var c in GetComponentsInChildren<Collider>())
-        {
-            c.enabled = false;
-        }
-
-        // Ocultar mallas visuales de inmediato
-        foreach (var r in GetComponentsInChildren<Renderer>())
-        {
-            r.enabled = false;
-        }
-
-        Transform visual = transform.Find("Visual");
-        if (visual != null)
-        {
-            visual.gameObject.SetActive(false);
-        }
-
-        Destroy(gameObject, 0.15f);
+        if (objetivo != null) objetivo.ReleaseBirdReservation(this);
+        objetivo = null;
+        gameObject.SetActive(false); Destroy(gameObject);
     }
-
-    private void OnBirdHit()
+    void OnDisable()
     {
-        // Más adelante aquí se disparará la animación de plumas
-        // Por ahora, el pájaro realiza un pequeño sobresalto si no se destruye de inmediato
-        if (animator != null)
-        {
-            animator.SetTrigger("Hit");
-        }
-    }
-
-    private void Update()
-    {
-        // Si lleva el avión atrapado, elevarse suavemente hacia el cielo llevándoselo
-        if (hasCapturedPlane && capturedPlane != null)
-        {
-            transform.position += (transform.forward + (Vector3.up * 0.4f)).normalized * carryFlySpeed * Time.deltaTime;
-        }
+        if (objetivo != null) objetivo.ReleaseBirdReservation(this);
+        if (animator != null) { animator.speed = originalAnimatorSpeed; animator.cullingMode = originalCulling; }
     }
 }

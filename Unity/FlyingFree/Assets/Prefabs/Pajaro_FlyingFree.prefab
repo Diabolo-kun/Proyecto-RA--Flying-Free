@@ -85,7 +85,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4c636f913a3ac6b448ce9cc704da3eec, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PajaroInteraccion
-  beakSocket: {fileID: 3021141148682645606}
+  beakSocket: {fileID: 6519208868945945434}
   animator: {fileID: 792319575871574307}
   captureAnimState: Capture
   carryFlySpeed: 2.5

@@ -97,7 +97,8 @@ public class GloboTarget : MonoBehaviour
     /// </summary>
     public void PopBalloon(PaperPlane plane)
     {
-        if (isPopped) return;
+        // Puede quedar un callback físico pendiente del mismo frame en que un pájaro lo roba.
+        if (isPopped || (plane != null && !plane.IsFlying)) return;
         isPopped = true;
 
         // Desactivar collider para que no sume doble
