@@ -292,6 +292,8 @@ public class TargetPlaneSpawner : MonoBehaviour
     [ContextMenu("Generar Objetos")]
     public void GenerateObjects()
     {
+        var game = GameManagerRA.Instance;
+        if (Application.isPlaying && game != null && game.HaIniciado && !game.PartidaEnCurso) return;
         EnsureContainers();
         ClearSpawnedObjects();
 
@@ -473,6 +475,14 @@ public class TargetPlaneSpawner : MonoBehaviour
         spawnedInstances.Clear();
         spawnedPositions.Clear();
         spawnedCrossPoints.Clear();
+    }
+
+    /// <summary>Restablece los globos al reiniciar una ronda sin depender de volver a detectar la marca.</summary>
+    public void ReiniciarRonda()
+    {
+        ClearSpawnedObjects(); hasGeneratedOnce = false;
+        if (isCurrentlyTracked || testModeWithoutVuforia)
+        { GenerateObjects(); hasGeneratedOnce = true; }
     }
 
     /// <summary>

@@ -43,13 +43,15 @@ public class TouchFlightController : MonoBehaviour
     [SerializeField] private float deadZone = 0.1f;
 
     private PaperPlane currentPlane;
+    private System.Action<bool> currentFinishedHandler;
+    public PaperPlane CurrentPlane => currentPlane;
     private Vector2 touchOrigin;
     private bool holding;
 
     private void Start()
     {
         if (cam == null) cam = Camera.main;
-        joystickBase.gameObject.SetActive(false);
+        if (joystickBase != null) joystickBase.gameObject.SetActive(false);
 
         EnsureGameSpaceReference();
     }
@@ -98,26 +100,27 @@ public class TouchFlightController : MonoBehaviour
 
     private void BeginTouch(Vector2 screenPos)
     {
-        // Solo un avión a la vez
         if (currentPlane != null)
-            Destroy(currentPlane.gameObject);
-
-        // Si no se pudo crear el avión (prefab mal asignado), no mostramos joystick
-        if (!SpawnPlane(screenPos))
-            return;
+        {
+            if (!currentPlane.IsFlying || (GameManagerRA.Instance != null && GameManagerRA.Instance.EsperandoSeguimiento)) return;
+        }
+        else if (!TryLaunch(screenPos)) return;
 
         touchOrigin = screenPos;
         holding = true;
 
-        joystickBase.gameObject.SetActive(true);
-        joystickBase.position = screenPos;          // válido en Canvas Overlay
-        joystickHandle.anchoredPosition = Vector2.zero;
+        if (joystickBase != null)
+        {
+            joystickBase.gameObject.SetActive(true);
+            joystickBase.position = screenPos;
+        }
+        if (joystickHandle != null) joystickHandle.anchoredPosition = Vector2.zero;
     }
 
     private void EndTouch()
     {
         holding = false;
-        joystickBase.gameObject.SetActive(false);
+        if (joystickBase != null) joystickBase.gameObject.SetActive(false);
 
         if (currentPlane != null)
             currentPlane.SetSteering(Vector2.zero);
@@ -125,8 +128,14 @@ public class TouchFlightController : MonoBehaviour
 
     // ───────────── Avión ─────────────
 
-    private bool SpawnPlane(Vector2 screenPos)
+    /// <summary>Entrada común para gestos y pruebas. Solo registra un intento tras un lanzamiento válido.</summary>
+    public bool TryLaunch(Vector2 screenPos)
     {
+        if (!isActiveAndEnabled || currentPlane != null) return false;
+        var game = GameManagerRA.Instance;
+        if (game != null && !game.PuedeLanzar) return false;
+        if (cam == null) cam = Camera.main;
+        if (cam == null) return false;
         EnsureGameSpaceReference();
 
         GameObject origen = AvionElegido();
@@ -175,8 +184,11 @@ public class TouchFlightController : MonoBehaviour
 
         planeObject.transform.localScale *= scale;
         plane.Initialize(dir, arReference);
-        plane.OnFinished += HandlePlaneFinished;
+        if (game != null && !game.TryRegisterLaunch(plane))
+        { plane.CancelForRoundEnd(); return false; }
         currentPlane = plane;
+        currentFinishedHandler = hit => HandlePlaneFinished(plane, hit);
+        plane.OnFinished += currentFinishedHandler;
         return true;
     }
 
@@ -235,8 +247,11 @@ public class TouchFlightController : MonoBehaviour
         return plane;
     }
 
-    private void HandlePlaneFinished(bool hitTarget)
+    private void HandlePlaneFinished(PaperPlane plane, bool hitTarget)
     {
+        if (!ReferenceEquals(plane, currentPlane)) return;
+        plane.OnFinished -= currentFinishedHandler;
+        currentFinishedHandler = null;
         currentPlane = null;
 
         // Si el dedo seguía pulsado, ocultamos el joystick;
@@ -244,7 +259,7 @@ public class TouchFlightController : MonoBehaviour
         if (holding)
         {
             holding = false;
-            joystickBase.gameObject.SetActive(false);
+            if (joystickBase != null) joystickBase.gameObject.SetActive(false);
         }
 
         Debug.Log(hitTarget ? "¡Objetivo alcanzado!" : "El avión se estrelló");
@@ -254,6 +269,7 @@ public class TouchFlightController : MonoBehaviour
 
     private void UpdateJoystick(Vector2 screenPos)
     {
+        if (canvas == null || joystickBase == null || joystickHandle == null) return;
         float scale = canvas.scaleFactor;
         float radiusPx = joystickBase.rect.width * 0.5f * scale;
 
@@ -262,7 +278,7 @@ public class TouchFlightController : MonoBehaviour
         // Posición del stick en unidades del Canvas
         joystickHandle.anchoredPosition = delta / scale;
 
-        Vector2 input = delta / radiusPx;
+        Vector2 input = delta / Mathf.Max(1, radiusPx);
         if (input.magnitude < deadZone) input = Vector2.zero;
 
         if (currentPlane != null)
@@ -280,4 +296,17 @@ public class TouchFlightController : MonoBehaviour
 
         return EventSystem.current.IsPointerOverGameObject();
     }
+
+    public void CancelarEntrada()
+    {
+        holding = false;
+        if (joystickBase != null) joystickBase.gameObject.SetActive(false);
+        if (currentPlane != null)
+        {
+            if (currentFinishedHandler != null) currentPlane.OnFinished -= currentFinishedHandler;
+            currentPlane.SetSteering(Vector2.zero);
+        }
+        currentPlane = null; currentFinishedHandler = null;
+    }
+    void OnDestroy() { CancelarEntrada(); }
 }

@@ -99,17 +99,19 @@ public class GloboTarget : MonoBehaviour
     {
         // Puede quedar un callback físico pendiente del mismo frame en que un pájaro lo roba.
         if (isPopped || (plane != null && !plane.IsFlying)) return;
+        var game = GameManagerRA.Instance;
+        if (game != null && !game.TryPopBalloon(this, plane, points)) return;
         isPopped = true;
 
         // Desactivar collider para que no sume doble
         if (col != null) col.enabled = false;
 
         // 1. Sumar punto al marcador
-        if (ScoreManager.Instance != null)
+        if (game == null && ScoreManager.Instance != null)
         {
             ScoreManager.Instance.AddScore(points);
         }
-        else
+        else if (game == null)
         {
             Debug.Log($"[GloboTarget] ¡Globo estallado! +{points} punto(s).");
         }
@@ -133,7 +135,7 @@ public class GloboTarget : MonoBehaviour
         }
 
         // 3. Hacer desaparecer el avión de papel
-        if (plane != null)
+        if (game == null && plane != null)
         {
             plane.OnHitBalloon();
         }

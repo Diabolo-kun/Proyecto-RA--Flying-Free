@@ -47,7 +47,13 @@ public class PaperPlane : MonoBehaviour
     bool initialized;
     UnityEngine.Object reservedByBird;
     void OnEnable() { if (!activePlanes.Contains(this)) activePlanes.Add(this); }
-    void OnDisable() { activePlanes.Remove(this); reservedByBird = null; }
+    void OnDisable()
+    {
+        activePlanes.Remove(this); reservedByBird = null;
+        // Destrucción externa o desactivación: también debe resolverse el lanzamiento.
+        if (initialized && !finished)
+        { finished = true; OnFinished?.Invoke(false); }
+    }
     public bool IsReservedByOtherBird(UnityEngine.Object bird) => reservedByBird != null && reservedByBird != bird;
     public bool TryReserveForBird(UnityEngine.Object bird)
     {
@@ -154,6 +160,8 @@ public class PaperPlane : MonoBehaviour
     private void LateUpdate()
     {
         if (!initialized || IsCaptured) return;
+        var game = GameManagerRA.Instance;
+        if (game != null && game.IsPlaneRegistered(this) && game.EsperandoSeguimiento) return;
         // Reproyectar la posición anterior con la pose ACTUAL del marcador evita falsos barridos al relocalizar AR.
         PreviousWorldPosition = reference != null ? reference.TransformPoint(localPosition) : localPosition;
         // Limitamos el dt para que un tirón de frame no atraviese una pared
@@ -337,9 +345,25 @@ public class PaperPlane : MonoBehaviour
 
     private void Finish(bool hitTarget)
     {
+        if (finished) return;
         finished = true;
         steerInput = Vector2.zero;
         OnFinished?.Invoke(hitTarget);
         Destroy(gameObject, destroyDelay);
+    }
+
+    /// <summary>La ronda ha terminado o se reinicia: retirar sin generar otra pérdida.</summary>
+    public void CancelForRoundEnd()
+    {
+        finished = true; initialized = false; reservedByBird = null;
+        foreach (var col in GetComponentsInChildren<Collider>()) col.enabled = false;
+        gameObject.SetActive(false); Destroy(gameObject);
+    }
+    public void ExpireFlight()
+    {
+        if (finished) return;
+        foreach (var col in GetComponentsInChildren<Collider>()) col.enabled = false;
+        foreach (var renderer in GetComponentsInChildren<Renderer>()) renderer.enabled = false;
+        Finish(false);
     }
 }
