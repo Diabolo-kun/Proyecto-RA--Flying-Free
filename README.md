@@ -1,5 +1,9 @@
 # Proyecto-RA--Flying-Free
 
+## Sprint 2b: puntuación y partida
+
+Aviones ilimitados, objetivo de cinco globos en treinta segundos, estadísticas de aciertos/fallos/robos y pantallas de resultado. [Guía de integración y pruebas](doc/Sprint2b_Partida/LEEME.md).
+
 ## Sprint 2b: pájaros
 
 La escena `GameRA` incluye aparición aleatoria, patrulla, intercepción lateral del avión y huida con él. [Guía de integración y resultados de las pruebas](doc/Sprint2b_Pajaros/LEEME.md).

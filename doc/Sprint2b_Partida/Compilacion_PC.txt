@@ -1,0 +1,9 @@
+Resultado: Succeeded
+Errores: 0
+Avisos: 39
+Unity: 6000.6.3f1
+Escenas:
+Assets/Scenes/FlyingFreeMenu.unity
+Assets/EscenaAvionMarca/EscenaAvionMarca.unity
+Assets/Scenes/GameRA.unity
+Assets/Scenes/TrailerAR.unity
