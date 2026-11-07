@@ -198,6 +198,8 @@ public class GameManagerRA : MonoBehaviour
         enVuelo.Clear(); edadVuelos.Clear();
         foreach (var plane in lanzados) if (plane != null && plane.IsFlying) plane.CancelForRoundEnd();
         foreach (var controller in FindObjectsByType<TouchFlightController>(FindObjectsSortMode.None)) controller.CancelarEntrada();
+        // Eliminar los globos restantes de la escena únicamente cuando aparece el menú de fin de juego
+        foreach (var spawner in FindObjectsByType<TargetPlaneSpawner>(FindObjectsSortMode.None)) spawner.EliminarTodosLosGlobos();
         if (canvasVictoria != null) canvasVictoria.SetActive(victoria);
         if (canvasDerrota != null) canvasDerrota.SetActive(!victoria);
         ActualizarTextosUI(); OnPartidaFinalizada?.Invoke(victoria, marcador != null ? marcador.CurrentScore : 0);

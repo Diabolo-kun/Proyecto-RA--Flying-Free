@@ -104,15 +104,7 @@ public class BalloonAnimator : MonoBehaviour
     /// </summary>
     public void AlignWithGravity()
     {
-        if (transform.parent != null && transform.parent.GetComponentInParent<TargetPlaneSpawner>() != null)
-        {
-            // El marco del generador define la vertical de la imagen. En un origen
-            // centrado en el target, Vector3.up puede ser precisamente su normal.
-            baseWorldRotation = Quaternion.LookRotation(transform.parent.up, transform.parent.forward);
-            transform.rotation = baseWorldRotation;
-            initialLocalRot = transform.localRotation;
-            return;
-        }
+        // Normal de la superficie o contenedor en el espacio mundial
         Vector3 wallNormalWorld = transform.parent != null ? transform.parent.up : transform.up;
         Vector3 forwardInRoom = Vector3.ProjectOnPlane(wallNormalWorld, Vector3.up);
         if (forwardInRoom.sqrMagnitude < 0.001f && transform.parent != null)
@@ -121,6 +113,7 @@ public class BalloonAnimator : MonoBehaviour
             forwardInRoom = Vector3.forward;
         forwardInRoom.Normalize();
 
+        // El eje +Y mira siempre al cielo (Vector3.up), por lo que el nudo (-Y) mira siempre al suelo real
         baseWorldRotation = Quaternion.LookRotation(forwardInRoom, Vector3.up);
         transform.rotation = baseWorldRotation;
         initialLocalRot = transform.localRotation;

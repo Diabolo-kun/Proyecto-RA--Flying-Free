@@ -38,16 +38,7 @@ public class TargetPlaneSpawnerEditor : Editor
             EditorUtility.SetDirty(spawner);
             SceneView.RepaintAll();
         }
-
         EditorGUILayout.Space(4);
-        GUI.backgroundColor = new Color(0.3f, 0.7f, 1f, 1f);
-        if (GUILayout.Button("📐 Calibrar Esquinas en la Escena", GUILayout.Height(26)))
-        {
-            Undo.RecordObject(spawner, "Calibrar Esquinas");
-            spawner.AutoSetupCornerObjects();
-            EditorUtility.SetDirty(spawner);
-            SceneView.RepaintAll();
-        }
 
         GUI.backgroundColor = new Color(0.85f, 0.85f, 0.85f, 1f);
         if (GUILayout.Button("🔄 Actualizar Plano Visual", GUILayout.Height(24)))

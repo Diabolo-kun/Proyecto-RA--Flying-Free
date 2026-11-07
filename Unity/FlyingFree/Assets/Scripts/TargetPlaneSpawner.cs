@@ -3,23 +3,22 @@ using UnityEngine;
 using Vuforia;
 
 /// <summary>
-/// Genera un plano configurable en el Inspector asociado a un Image Target de Vuforia.
-/// Genera prefabs aleatoriamente dentro del plano respetando:
-/// - Las esquinas y márgenes de la pared/plano.
-/// - La distancia mínima entre objetos para evitar superposiciones.
-/// - Animación de subida desde el suelo hasta altura aleatoria.
+/// Controla la aparición, posicionamiento en el entorno AR y ciclo de vida de los globos.
+/// Soporta área rectangular y el algoritmo de círculo (Trello: radio X + distancia Y).
+/// Garantiza la distancia mínima entre globos, alineación con la gravedad real,
+/// gestión de globos restantes y eliminación exclusiva al mostrarse el menú de fin de juego.
 /// </summary>
 public class TargetPlaneSpawner : MonoBehaviour
 {
     public enum AreaShape
     {
-        [Tooltip("Plano rectangular de pared delimitado por sus 4 esquinas (traslado a pared)")]
+        [Tooltip("Plano rectangular de pared delimitado por sus dimensiones y márgenes")]
         RectangularPlane = 0,
         [Tooltip("Círculo de radio X con algoritmo de Trello: rayo desde el origen + distancia Y tras el cruce")]
         Circle_OriginRay = 1,
         [Tooltip("Círculo con distribución uniforme de área")]
         Circle_Uniform = 2,
-        [Tooltip("Pared delimitada por 4 Transforms manuales de esquinas")]
+        [Tooltip("Modo de esquinas (retrocompatibilidad, redirige a RectangularPlane)")]
         CustomCorners = 3
     }
 
@@ -27,13 +26,21 @@ public class TargetPlaneSpawner : MonoBehaviour
     [Tooltip("Target de Vuforia. Si está vacío se busca en este GameObject automáticamente")]
     public ObserverBehaviour imageTargetObserver;
 
-    [Tooltip("Prefab asignado que se generará aleatoriamente (ej. Globo)")]
+    [Tooltip("Prefab asignado que se generará aleatoriamente (ej. Globo_Explosion)")]
     public GameObject prefabToSpawn;
 
     [Header("--- PLANO DE LA MARCA ---")]
-    [Tooltip("Los globos suben paralelos a la imagen, hacia la parte superior de la vista. X = ancho, Z = altura sobre la imagen, Y = separación constante de la marca.")]
+    [Tooltip("Los globos se organizan paralelos a la imagen respecto a la ARCamera")]
     public bool uprightLayout = true;
 
+    [Tooltip("Ajusta el conjunto al encuadre real de la cámara al generar la ronda")]
+    public bool fitLayoutToCamera;
+
+    [Range(.01f, 1)] public float maximumLayoutScale = .15f;
+    private float layoutScale = 1;
+    private Vector2 layoutShift;
+
+    public float LayoutScale => layoutScale;
     public Quaternion LayoutRotation
     {
         get
@@ -44,61 +51,14 @@ public class TargetPlaneSpawner : MonoBehaviour
             return ARGameSpace.MarkerPlaneFrame(transform, camera);
         }
     }
-    [Tooltip("Ajusta una vez el conjunto al encuadre real al generar la ronda; mantiene su escala al mover la cámara.")]
-    public bool fitLayoutToCamera;
-    [Range(.01f, 1)] public float maximumLayoutScale = .15f;
-    private float layoutScale = 1;
-    private Vector2 layoutShift;
-    public float LayoutScale => layoutScale;
     private Vector3 LayoutOrigin => transform.position + LayoutRotation * new Vector3(layoutShift.x, 0, layoutShift.y);
     private Matrix4x4 LayoutMatrix => Matrix4x4.TRS(LayoutOrigin, LayoutRotation, transform.lossyScale * layoutScale);
-
-    private void FitLayout()
-    {
-        layoutScale = 1; layoutShift = Vector2.zero;
-        if (!fitLayoutToCamera) return;
-        Camera camera = ARGameSpace.Instance != null ? ARGameSpace.Instance.CameraAR : Camera.main;
-        if (camera == null) camera = Camera.main;
-        layoutScale = maximumLayoutScale;
-        if (camera != null)
-        {
-            Quaternion rotation = LayoutRotation;
-            var plane = new Plane(rotation * Vector3.up, transform.position);
-            Vector2 min = Vector2.one * float.PositiveInfinity, max = Vector2.one * float.NegativeInfinity;
-            bool valid = true;
-            // Reservar espacio para HUD y gesto/joystick. Se usa la proyección calibrada
-            // de la ARCamera, no una distancia supuesta ni un FOV fijo del editor.
-            foreach (var corner in new[] { new Vector2(.12f, .22f), new Vector2(.88f, .22f),
-                new Vector2(.88f, .80f), new Vector2(.12f, .80f) })
-            {
-                Ray ray = camera.ViewportPointToRay(corner);
-                if (!plane.Raycast(ray, out float distance)) { valid = false; break; }
-                Vector3 local = Quaternion.Inverse(rotation) * (ray.GetPoint(distance) - transform.position);
-                min = Vector2.Min(min, new Vector2(local.x, local.z));
-                max = Vector2.Max(max, new Vector2(local.x, local.z));
-            }
-            if (valid)
-            {
-                // El margen incluye el cuerpo, el hilo y la oscilación del prefab real.
-                Vector2 size = planeSize + new Vector2(.44f, .70f);
-                layoutScale = Mathf.Clamp(Mathf.Min(maximumLayoutScale, (max.x - min.x) / size.x,
-                    (max.y - min.y) / size.y), .002f, maximumLayoutScale);
-                Vector2 half = size * (layoutScale * .5f);
-                Vector2 desiredCenter = new Vector2(planeOffset.x, planeOffset.z) * layoutScale;
-                Vector2 center = new Vector2(Mathf.Clamp(desiredCenter.x, min.x + half.x, max.x - half.x),
-                    Mathf.Clamp(desiredCenter.y, min.y + half.y, max.y - half.y));
-                layoutShift = center - desiredCenter;
-            }
-        }
-        ARGameSpace.GetOrCreateInstance().SetGameplayScale(layoutScale);
-        UpdateLayoutPose();
-    }
 
     [Header("--- DIMENSIONES DEL PLANO / PARED ---")]
     [Tooltip("Forma y algoritmo del área de generación")]
     public AreaShape areaShape = AreaShape.RectangularPlane;
 
-    [Tooltip("Tamaño del plano: X = Ancho horizontal, Y = Alto/Largo vertical en el plano")]
+    [Tooltip("Tamaño del plano: X = Ancho horizontal, Y = Alto/Largo vertical")]
     public Vector2 planeSize = new Vector2(2.0f, 1.5f);
 
     [Tooltip("Radio X del círculo invisible con centro en la marca")]
@@ -113,44 +73,37 @@ public class TargetPlaneSpawner : MonoBehaviour
     [Tooltip("Desplazamiento del centro del plano con respecto a la marca")]
     public Vector3 planeOffset = Vector3.zero;
 
-    [Tooltip("Margen de seguridad hacia adentro respecto a las esquinas y bordes de la pared")]
+    [Tooltip("Margen de seguridad hacia adentro respecto a los bordes")]
     [Range(0f, 1f)]
     public float cornerMargin = 0.15f;
 
-    [Header("--- ESQUINAS FÍSICAS DE LA PARED (OPCIONAL) ---")]
-    [Tooltip("Si se asignan, definen las 4 esquinas físicas de la pared para que no dé errores de salida")]
-    public Transform cornerBottomLeft;
-    public Transform cornerBottomRight;
-    public Transform cornerTopRight;
-    public Transform cornerTopLeft;
-
     [Header("--- VISUALIZACIÓN DEL PLANO ---")]
-    [Tooltip("Crear/mostrar un plano visual que represente la pared/superficie")]
+    [Tooltip("Mostrar plano visual semitransparente que represente la pared")]
     public bool showVisualPlane = true;
 
     [Tooltip("Material para el plano visual (opcional)")]
     public Material planeMaterial;
 
-    [Tooltip("Color del plano visual si no se asigna material específico")]
+    [Tooltip("Color del plano visual si no se asigna material")]
     public Color planeColor = new Color(0.15f, 0.55f, 0.95f, 0.25f);
 
-    [Tooltip("Dibujar líneas de rayos desde el origen hasta los globos en el Scene view")]
+    [Tooltip("Dibujar líneas guía y rayos en la vista de escena")]
     public bool drawRayGizmos = true;
 
     [Header("--- REGLAS DE GENERACIÓN ALEATORIA ---")]
-    [Tooltip("Cantidad de prefabs a generar")]
+    [Tooltip("Cantidad de globos a generar en la ronda")]
     [Range(1, 50)]
     public int numberOfObjects = 6;
 
-    [Tooltip("Distancia mínima obligatoria entre cada prefab generado (para que no se solapen)")]
+    [Tooltip("Distancia mínima obligatoria entre globos para evitar solapes")]
     [Range(0.05f, 2f)]
     public float minDistanceBetweenObjects = 0.35f;
 
-    [Tooltip("Intentos máximos de muestreo por objeto antes de descartarlo si el plano está saturado")]
+    [Tooltip("Intentos máximos de muestreo antes de descartar una posición saturada")]
     public int maxPlacementAttempts = 100;
 
     [Header("--- ORIENTACIÓN DEL GLOBO (GRAVEDAD REAL) ---")]
-    [Tooltip("Garantiza que el nudo del globo apunte siempre hacia el suelo real (Vector3.down), independientemente de cómo se coloque o gire la marca en la pared")]
+    [Tooltip("Garantiza que el nudo del globo apunte siempre hacia el suelo real con la gravedad, inmune a giros del móvil")]
     public bool nudoHaciaAbajoGravedad = true;
 
     [Header("--- ANIMACIÓN DE SUBIDA (GLOBO) ---")]
@@ -169,7 +122,7 @@ public class TargetPlaneSpawner : MonoBehaviour
     [Tooltip("Tiempo en segundos que tarda en subir cada globo")]
     public float riseDuration = 2.5f;
 
-    [Tooltip("Nivel del 'suelo' relativo. Por defecto se calcula en el borde inferior del plano")]
+    [Tooltip("Nivel del suelo relativo calculado en el borde inferior del plano")]
     public bool useBottomCornerAsFloor = true;
 
     [Tooltip("Offset personalizado de suelo si no se usa el borde inferior")]
@@ -179,17 +132,17 @@ public class TargetPlaneSpawner : MonoBehaviour
     [Tooltip("Generar automáticamente al detectar la marca")]
     public bool autoSpawnOnTracking = true;
 
-    [Tooltip("Si está activo, sólo se muestran cuando el target esté en estado TRACKED")]
+    [Tooltip("Sólo mostrar cuando el target esté en estado TRACKED")]
     public bool onlyWhenTracked = true;
 
-    [Tooltip("Volver a generar objetos cada vez que se detecte de nuevo la marca")]
+    [Tooltip("Volver a generar objetos cada vez que se detecte la marca")]
     public bool regenerateOnEachDetection = false;
 
-    [Tooltip("Ocultar los objetos cuando se pierda el seguimiento")]
+    [Tooltip("Ocultar los objetos cuando se pierda el seguimiento momentáneamente")]
     public bool hideOnTrackingLost = true;
 
     [Header("--- MODO DE PRUEBAS (SIN VUFORIA) ---")]
-    [Tooltip("Si está activo, simula que la marca está detectada permanentemente para probar en Play sin cámara ni Vuforia")]
+    [Tooltip("Simula detección permanente para probar en Play sin cámara ni imagen")]
     public bool testModeWithoutVuforia = true;
 
     // Referencias internas
@@ -203,6 +156,28 @@ public class TargetPlaneSpawner : MonoBehaviour
     private bool hasGeneratedOnce = false;
     private bool hasStarted;
 
+    /// <summary>
+    /// Gestión de globos que quedan por explotar en la ronda actual.
+    /// </summary>
+    public int GlobosRestantes => GetActiveBalloonsCount();
+    public int GlobosVivos => GetActiveBalloonsCount();
+    public int GlobosTotalesRonda => spawnedInstances.Count;
+
+    private int GetActiveBalloonsCount()
+    {
+        int count = 0;
+        for (int i = 0; i < spawnedInstances.Count; i++)
+        {
+            GameObject obj = spawnedInstances[i];
+            if (obj != null && obj.activeInHierarchy)
+            {
+                GloboTarget target = obj.GetComponent<GloboTarget>();
+                if (target == null || !target.IsPopped) count++;
+            }
+        }
+        return count;
+    }
+
     private void Awake()
     {
         if (imageTargetObserver == null)
@@ -215,30 +190,44 @@ public class TargetPlaneSpawner : MonoBehaviour
     {
         if (imageTargetObserver != null)
             imageTargetObserver.OnTargetStatusChanged += HandleTargetStatusChanged;
+
+        if (GameManagerRA.Instance != null)
+            GameManagerRA.Instance.OnPartidaFinalizada += HandlePartidaFinalizada;
     }
 
     private void OnDisable()
     {
         if (imageTargetObserver != null)
             imageTargetObserver.OnTargetStatusChanged -= HandleTargetStatusChanged;
+
+        if (GameManagerRA.Instance != null)
+            GameManagerRA.Instance.OnPartidaFinalizada -= HandlePartidaFinalizada;
+    }
+
+    private void HandlePartidaFinalizada(bool victoria, int score)
+    {
+        // Regla: eliminar los globos restantes únicamente cuando aparece el menú de fin de juego
+        EliminarTodosLosGlobos();
     }
 
     private void Start()
     {
         hasStarted = true;
-        // Asegurar que el marco de referencia maestro ARGameSpace esté listo y alineado
-        ARGameSpace.GetOrCreateInstance();
+        if (GameManagerRA.Instance != null)
+        {
+            GameManagerRA.Instance.OnPartidaFinalizada -= HandlePartidaFinalizada;
+            GameManagerRA.Instance.OnPartidaFinalizada += HandlePartidaFinalizada;
+        }
 
+        ARGameSpace.GetOrCreateInstance();
         UpdateVisualPlane();
 
-        // En modo pruebas, simular detección directa al iniciar
         if (testModeWithoutVuforia)
         {
             OnTargetFound();
         }
         else
         {
-            // Ocultar al inicio hasta que Vuforia detecte el ImageTarget
             if (spawnedObjectsContainer != null)
                 spawnedObjectsContainer.SetActive(false);
 
@@ -247,22 +236,23 @@ public class TargetPlaneSpawner : MonoBehaviour
         }
     }
 
+    private void OnDestroy()
+    {
+        if (GameManagerRA.Instance != null)
+            GameManagerRA.Instance.OnPartidaFinalizada -= HandlePartidaFinalizada;
+    }
+
     private void OnValidate()
     {
-        // Actualización dinámica en el Inspector de Unity
         if (cornerMargin > planeSize.x * 0.45f) cornerMargin = planeSize.x * 0.45f;
         if (cornerMargin > planeSize.y * 0.45f) cornerMargin = planeSize.y * 0.45f;
 
         if (Application.isPlaying && hasStarted)
         {
             if (testModeWithoutVuforia && !isCurrentlyTracked)
-            {
                 OnTargetFound();
-            }
             else if (!testModeWithoutVuforia && isCurrentlyTracked && imageTargetObserver != null)
-            {
                 OnTargetLost();
-            }
 
             UpdateVisualPlane();
         }
@@ -277,10 +267,7 @@ public class TargetPlaneSpawner : MonoBehaviour
         if (tracked)
         {
             testModeWithoutVuforia = false;
-            if (!isCurrentlyTracked)
-            {
-                OnTargetFound();
-            }
+            if (!isCurrentlyTracked) OnTargetFound();
         }
         else if (!tracked && isCurrentlyTracked && !testModeWithoutVuforia)
         {
@@ -299,20 +286,7 @@ public class TargetPlaneSpawner : MonoBehaviour
             planeVisualObject.SetActive(true);
 
         if (spawnedObjectsContainer != null)
-        {
             spawnedObjectsContainer.SetActive(true);
-
-            // Re-habilitar los renderers principales por si fueron deshabilitados por DefaultObserverEventHandler
-            foreach (Renderer r in spawnedObjectsContainer.GetComponentsInChildren<Renderer>(true))
-            {
-                var balloon = r.GetComponentInParent<GloboTarget>();
-                if (balloon != null && balloon.IsPopped) continue;
-                if (!r.gameObject.name.StartsWith("Globo_Trozo_"))
-                {
-                    r.enabled = true;
-                }
-            }
-        }
 
         if (autoSpawnOnTracking)
         {
@@ -329,6 +303,7 @@ public class TargetPlaneSpawner : MonoBehaviour
     {
         isCurrentlyTracked = false;
 
+        // Al perder tracking solo se ocultan temporalmente, NUNCA se destruyen aquí
         if (hideOnTrackingLost)
         {
             if (planeVisualObject != null)
@@ -357,9 +332,11 @@ public class TargetPlaneSpawner : MonoBehaviour
         UpdateLayoutPose();
     }
 
-    // Vuforia actualiza la pose del ImageTarget. Compensamos su inclinación antes
-    // de animar los globos y antes de que PaperPlane ejecute su barrido (orden 100).
-    private void LateUpdate() { UpdateLayoutPose(); }
+    private void LateUpdate()
+    {
+        UpdateLayoutPose();
+    }
+
     private void UpdateLayoutPose()
     {
         Quaternion rotation = LayoutRotation;
@@ -376,23 +353,62 @@ public class TargetPlaneSpawner : MonoBehaviour
         }
     }
 
+    private void FitLayout()
+    {
+        layoutScale = 1; layoutShift = Vector2.zero;
+        if (!fitLayoutToCamera) return;
+        Camera camera = ARGameSpace.Instance != null ? ARGameSpace.Instance.CameraAR : Camera.main;
+        if (camera == null) camera = Camera.main;
+        layoutScale = maximumLayoutScale;
+        if (camera != null)
+        {
+            Quaternion rotation = LayoutRotation;
+            var plane = new Plane(rotation * Vector3.up, transform.position);
+            Vector2 min = Vector2.one * float.PositiveInfinity, max = Vector2.one * float.NegativeInfinity;
+            bool valid = true;
+
+            foreach (var corner in new[] { new Vector2(.12f, .22f), new Vector2(.88f, .22f),
+                new Vector2(.88f, .80f), new Vector2(.12f, .80f) })
+            {
+                Ray ray = camera.ViewportPointToRay(corner);
+                if (!plane.Raycast(ray, out float distance)) { valid = false; break; }
+                Vector3 local = Quaternion.Inverse(rotation) * (ray.GetPoint(distance) - transform.position);
+                min = Vector2.Min(min, new Vector2(local.x, local.z));
+                max = Vector2.Max(max, new Vector2(local.x, local.z));
+            }
+            if (valid)
+            {
+                Vector2 size = planeSize + new Vector2(.44f, .70f);
+                layoutScale = Mathf.Clamp(Mathf.Min(maximumLayoutScale, (max.x - min.x) / size.x,
+                    (max.y - min.y) / size.y), .002f, maximumLayoutScale);
+                Vector2 half = size * (layoutScale * .5f);
+                Vector2 desiredCenter = new Vector2(planeOffset.x, planeOffset.z) * layoutScale;
+                Vector2 center = new Vector2(Mathf.Clamp(desiredCenter.x, min.x + half.x, max.x - half.x),
+                    Mathf.Clamp(desiredCenter.y, min.y + half.y, max.y - half.y));
+                layoutShift = center - desiredCenter;
+            }
+        }
+        ARGameSpace.GetOrCreateInstance().SetGameplayScale(layoutScale);
+        UpdateLayoutPose();
+    }
+
     /// <summary>
-    /// Genera la cantidad de objetos solicitada dentro del plano respetando esquinas y distancia mínima.
+    /// Genera la cantidad solicitada de globos en el área respetando distancias mínimas.
     /// </summary>
     [ContextMenu("Generar Objetos")]
     public void GenerateObjects()
     {
         var game = GameManagerRA.Instance;
         if (Application.isPlaying && game != null && game.HaIniciado && !game.PartidaEnCurso) return;
+
         EnsureContainers();
-        ClearSpawnedObjects();
+        EliminarTodosLosGlobos();
 
         spawnedPositions.Clear();
         spawnedCrossPoints.Clear();
         int successfullySpawned = 0;
         FitLayout();
 
-        // Calcular el nivel del suelo donde empezará la animación
         float floorLevel = useBottomCornerAsFloor ? (planeOffset.z - (planeSize.y * 0.5f)) : customFloorOffset;
 
         for (int i = 0; i < numberOfObjects; i++)
@@ -426,62 +442,49 @@ public class TargetPlaneSpawner : MonoBehaviour
             }
             else
             {
-                Debug.LogWarning($"[TargetPlaneSpawner] No se pudo encontrar espacio libre para el objeto #{i + 1} " +
-                                 $"(distancia mínima requerida: {minDistanceBetweenObjects}m). Considera agrandar el plano o reducir la distancia.");
+                Debug.LogWarning($"[TargetPlaneSpawner] No se pudo encontrar espacio libre para el globo #{i + 1} " +
+                                 $"(distancia mínima: {minDistanceBetweenObjects}m). Considera agrandar el plano.");
             }
         }
 
-        Debug.Log($"[TargetPlaneSpawner] Generación completada: {successfullySpawned}/{numberOfObjects} objetos colocados con éxito.");
+        Debug.Log($"[TargetPlaneSpawner] Generación completada: {successfullySpawned}/{numberOfObjects} globos colocados.");
     }
 
-    /// <summary>
-    /// Instancia el prefab o crea uno de prueba si no está asignado.
-    /// </summary>
     private GameObject SpawnPrefabAt(Vector3 targetPoint, float floorLevel)
     {
         EnsureContainers();
 
-        // 1. Orientación del globo con nudo hacia abajo (gravedad real):
-        // En Vuforia, la normal que sale del plano del ImageTarget es transform.up (+Y).
-        Vector3 forwardInRoom = LayoutRotation * Vector3.up;
-        Vector3 imageUp = LayoutRotation * Vector3.forward;
+        // Orientación del globo con nudo hacia el suelo según la gravedad real del mundo
+        Vector3 wallNormalWorld = LayoutRotation * Vector3.up;
+        Vector3 forwardInRoom = Vector3.ProjectOnPlane(wallNormalWorld, Vector3.up);
+        if (forwardInRoom.sqrMagnitude < 0.001f)
+            forwardInRoom = Vector3.ProjectOnPlane(LayoutRotation * Vector3.forward, Vector3.up);
+        if (forwardInRoom.sqrMagnitude < 0.001f)
+            forwardInRoom = Vector3.forward;
+        forwardInRoom.Normalize();
 
-        // Rotación en el mundo donde:
-        // +Y mira hacia el techo (Vector3.up), por tanto el nudo (-Y) mira hacia el suelo
-        // +Z mira hacia la habitación (saliendo de la pared)
-        Quaternion balloonWorldRot = Quaternion.LookRotation(forwardInRoom, imageUp);
-
-        // Vector local en el plano del target que apunta hacia arriba en el mundo
+        Quaternion balloonWorldRot = Quaternion.LookRotation(forwardInRoom, Vector3.up);
         Vector3 localWallUp = Vector3.forward;
 
-        GameObject newObj = null;
-        if (prefabToSpawn != null)
+        if (prefabToSpawn == null)
         {
-            newObj = Instantiate(prefabToSpawn, spawnedObjectsContainer.transform);
-        }
-        else
-        {
-            newObj = CreateFallbackBalloonObject();
-            newObj.transform.SetParent(spawnedObjectsContainer.transform, false);
-        }
-
-        newObj.name = $"Globo_{spawnedInstances.Count + 1}";
-        newObj.transform.rotation = balloonWorldRot;
-
-        // Asegurar que los renderers principales estén visibles
-        foreach (Renderer r in newObj.GetComponentsInChildren<Renderer>(true))
-        {
-            if (!r.gameObject.name.StartsWith("Globo_Trozo_"))
+#if UNITY_EDITOR
+            prefabToSpawn = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Globo_Explosion.prefab");
+#endif
+            if (prefabToSpawn == null)
             {
-                r.enabled = true;
+                Debug.LogError("[TargetPlaneSpawner] No se ha asignado 'prefabToSpawn'. Asigna el prefab de globo en el Inspector.");
+                return null;
             }
         }
 
-        // Asegurar componente GloboTarget para puntuación y explosión al impactar el avión
+        GameObject newObj = Instantiate(prefabToSpawn, spawnedObjectsContainer.transform);
+        newObj.name = $"Globo_{spawnedInstances.Count + 1}";
+        newObj.transform.rotation = balloonWorldRot;
+
+        // Asegurar componente GloboTarget para colisiones y eventos de explosión
         if (newObj.GetComponent<GloboTarget>() == null)
-        {
             newObj.AddComponent<GloboTarget>();
-        }
 
         Collider balloonCol = newObj.GetComponent<Collider>();
         if (balloonCol == null)
@@ -495,10 +498,9 @@ public class TargetPlaneSpawner : MonoBehaviour
             balloonCol.isTrigger = true;
         }
 
-        // Asegurar que el punto en la pared esté en la superficie del target (y = 0.03m levemente separado)
+        // Posicionar en la superficie del plano con leve separación
         targetPoint.y = planeOffset.y + 0.03f;
 
-        // Posición de inicio de subida desde abajo en la pared
         float riseDist = Random.Range(minRiseHeight, maxRiseHeight);
         Vector3 groundSpawnPos = targetPoint - (localWallUp * riseDist);
         if (useBottomCornerAsFloor) groundSpawnPos.z = Mathf.Min(floorLevel, targetPoint.z);
@@ -509,10 +511,7 @@ public class TargetPlaneSpawner : MonoBehaviour
             newObj.transform.localPosition = groundSpawnPos;
 
             BalloonAnimator animator = newObj.GetComponent<BalloonAnimator>();
-            if (animator == null)
-            {
-                animator = newObj.AddComponent<BalloonAnimator>();
-            }
+            if (animator == null) animator = newObj.AddComponent<BalloonAnimator>();
 
             animator.alignKnotWithGravity = nudoHaciaAbajoGravedad;
             animator.movementAxis = riseAxis;
@@ -531,19 +530,18 @@ public class TargetPlaneSpawner : MonoBehaviour
     }
 
     /// <summary>
-    /// Elimina todos los objetos instanciados actualmente.
+    /// Elimina todos los globos instanciados. Se ejecuta al aparecer el menú de fin de juego o al reiniciar la ronda.
     /// </summary>
-    [ContextMenu("Limpiar Objetos")]
-    public void ClearSpawnedObjects()
+    [ContextMenu("Eliminar Todos los Globos")]
+    public void EliminarTodosLosGlobos()
     {
-        foreach (GameObject obj in spawnedInstances)
+        for (int i = 0; i < spawnedInstances.Count; i++)
         {
+            GameObject obj = spawnedInstances[i];
             if (obj != null)
             {
-                if (Application.isPlaying)
-                    Destroy(obj);
-                else
-                    DestroyImmediate(obj);
+                if (Application.isPlaying) Destroy(obj);
+                else DestroyImmediate(obj);
             }
         }
         spawnedInstances.Clear();
@@ -551,16 +549,25 @@ public class TargetPlaneSpawner : MonoBehaviour
         spawnedCrossPoints.Clear();
     }
 
-    /// <summary>Restablece los globos al reiniciar una ronda sin depender de volver a detectar la marca.</summary>
+    public void ClearSpawnedObjects() => EliminarTodosLosGlobos();
+
+    /// <summary>
+    /// Restablece los globos al reiniciar una ronda sin depender de volver a detectar la marca.
+    /// </summary>
+    [ContextMenu("Reiniciar Ronda")]
     public void ReiniciarRonda()
     {
-        ClearSpawnedObjects(); hasGeneratedOnce = false;
+        EliminarTodosLosGlobos();
+        hasGeneratedOnce = false;
         if (isCurrentlyTracked || testModeWithoutVuforia)
-        { GenerateObjects(); hasGeneratedOnce = true; }
+        {
+            GenerateObjects();
+            hasGeneratedOnce = true;
+        }
     }
 
     /// <summary>
-    /// Retorna un punto aleatorio dentro del área configurada respetando esquinas, distancias y el modo de área.
+    /// Retorna un punto aleatorio dentro del área configurada respetando los márgenes.
     /// </summary>
     public Vector3 GetRandomPointInArea()
     {
@@ -570,7 +577,7 @@ public class TargetPlaneSpawner : MonoBehaviour
             {
                 // Algoritmo Trello:
                 // 1. Círculo invisible de radio X centrado en la marca (planeOffset).
-                // 2. Escoger dirección aleatoria (línea desde el origen hacia ese punto).
+                // 2. Dirección aleatoria desde el centro.
                 float angle = Random.Range(0f, Mathf.PI * 2f);
                 Vector3 dir = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
 
@@ -578,179 +585,54 @@ public class TargetPlaneSpawner : MonoBehaviour
                 Vector3 crossPoint = planeOffset + (dir * Mathf.Max(0.01f, circleRadius));
                 lastCalculatedCrossPoint = crossPoint;
 
-                // 4. "y un poco más, en el punto de cruce, a Y distancia se elige un punto aleatorio":
+                // 4. A distancia Y tras el cruce se escoge el punto final:
                 float actualDistY = Mathf.Max(0f, circleCrossDistanceY + Random.Range(-distanceYJitter, distanceYJitter));
-                Vector3 finalPoint = crossPoint + (dir * actualDistY);
-
-                return finalPoint;
+                return crossPoint + (dir * actualDistY);
             }
 
             case AreaShape.Circle_Uniform:
             {
-                // Distribución homogénea en círculo
                 float safeRadius = Mathf.Max(0.01f, circleRadius - cornerMargin);
                 float r = Mathf.Sqrt(Random.Range(0f, 1f)) * safeRadius;
                 float angle = Random.Range(0f, Mathf.PI * 2f);
 
-                float randomX = r * Mathf.Cos(angle);
-                float randomZ = r * Mathf.Sin(angle);
-
                 lastCalculatedCrossPoint = planeOffset + new Vector3(Mathf.Cos(angle) * circleRadius, 0, Mathf.Sin(angle) * circleRadius);
-                return planeOffset + new Vector3(randomX, 0, randomZ);
-            }
-
-            case AreaShape.CustomCorners:
-            {
-                // Si hay 4 esquinas asignadas manualmente, interpolar bilinealmente
-                if (cornerBottomLeft != null && cornerBottomRight != null && cornerTopRight != null && cornerTopLeft != null)
-                {
-                    Vector3 bl = LayoutMatrix.inverse.MultiplyPoint3x4(cornerBottomLeft.position);
-                    Vector3 br = LayoutMatrix.inverse.MultiplyPoint3x4(cornerBottomRight.position);
-                    Vector3 tr = LayoutMatrix.inverse.MultiplyPoint3x4(cornerTopRight.position);
-                    Vector3 tl = LayoutMatrix.inverse.MultiplyPoint3x4(cornerTopLeft.position);
-
-                    float u = Random.Range(cornerMargin, 1f - cornerMargin);
-                    float v = Random.Range(cornerMargin, 1f - cornerMargin);
-
-                    Vector3 bottom = Vector3.Lerp(bl, br, u);
-                    Vector3 top = Vector3.Lerp(tl, tr, u);
-                    Vector3 point = Vector3.Lerp(bottom, top, v);
-
-                    lastCalculatedCrossPoint = planeOffset;
-                    return point;
-                }
-                // Si no están asignadas las 4, fallback al plano rectangular
-                goto default;
+                return planeOffset + new Vector3(r * Mathf.Cos(angle), 0, r * Mathf.Sin(angle));
             }
 
             case AreaShape.RectangularPlane:
+            case AreaShape.CustomCorners:
             default:
             {
-                // Traslado a la pared: rectángulo delimitado por las esquinas con margen de seguridad
                 float safeHalfWidth = Mathf.Max(0.01f, (planeSize.x * 0.5f) - cornerMargin);
                 float safeHalfHeight = Mathf.Max(0.01f, (planeSize.y * 0.5f) - cornerMargin);
 
                 float randomX = Random.Range(-safeHalfWidth, safeHalfWidth);
                 float randomZ = Random.Range(-safeHalfHeight, safeHalfHeight);
 
-                Vector3 target = planeOffset + new Vector3(randomX, 0, randomZ);
                 lastCalculatedCrossPoint = planeOffset;
-                return target;
+                return planeOffset + new Vector3(randomX, 0, randomZ);
             }
         }
     }
 
-    /// <summary>
-    /// Valida que el punto candidato esté al menos a 'minDist' de todos los puntos ya aceptados.
-    /// </summary>
     private bool IsDistanceValid(Vector3 candidate, List<Vector3> existingPoints, float minDist)
     {
         float sqrMinDist = minDist * minDist;
         for (int i = 0; i < existingPoints.Count; i++)
         {
             if ((candidate - existingPoints[i]).sqrMagnitude < sqrMinDist)
-            {
                 return false;
-            }
         }
         return true;
     }
 
-    /// <summary>
-    /// Calcula las 4 esquinas del plano en coordenadas locales del Image Target.
-    /// Si se asignaron Transforms de esquinas, usa sus posiciones exactas.
-    /// </summary>
-    public Vector3[] GetPlaneCorners(bool withMargin = false)
-    {
-        if (areaShape == AreaShape.CustomCorners &&
-            cornerBottomLeft != null && cornerBottomRight != null && cornerTopRight != null && cornerTopLeft != null)
-        {
-            Vector3 bl = LayoutMatrix.inverse.MultiplyPoint3x4(cornerBottomLeft.position);
-            Vector3 br = LayoutMatrix.inverse.MultiplyPoint3x4(cornerBottomRight.position);
-            Vector3 tr = LayoutMatrix.inverse.MultiplyPoint3x4(cornerTopRight.position);
-            Vector3 tl = LayoutMatrix.inverse.MultiplyPoint3x4(cornerTopLeft.position);
-
-            if (withMargin)
-            {
-                Vector3 center = (bl + br + tr + tl) * 0.25f;
-                float shrink = Mathf.Clamp01(1f - (cornerMargin * 0.5f));
-                bl = Vector3.Lerp(center, bl, shrink);
-                br = Vector3.Lerp(center, br, shrink);
-                tr = Vector3.Lerp(center, tr, shrink);
-                tl = Vector3.Lerp(center, tl, shrink);
-            }
-
-            return new Vector3[4] { bl, br, tr, tl };
-        }
-
-        float margin = withMargin ? cornerMargin : 0f;
-        float halfW = Mathf.Max(0.01f, (planeSize.x * 0.5f) - margin);
-        float halfH = Mathf.Max(0.01f, (planeSize.y * 0.5f) - margin);
-
-        return new Vector3[4]
-        {
-            planeOffset + new Vector3(-halfW, 0, -halfH), // 0: Esquina Inferior-Izquierda
-            planeOffset + new Vector3( halfW, 0, -halfH), // 1: Esquina Inferior-Derecha
-            planeOffset + new Vector3( halfW, 0,  halfH), // 2: Esquina Superior-Derecha
-            planeOffset + new Vector3(-halfW, 0,  halfH)  // 3: Esquina Superior-Izquierda
-        };
-    }
-
-    /// <summary>
-    /// Crea 4 GameObjects hijos para manipular visualmente las esquinas de la pared en la Scene view.
-    /// </summary>
-    [ContextMenu("Crear / Calibrar Esquinas Físicas en la Escena")]
-    public void AutoSetupCornerObjects()
-    {
-        Vector3[] corners = GetPlaneCorners(false);
-        string[] names = new string[] { "Esquina_InferiorIzquierda", "Esquina_InferiorDerecha", "Esquina_SuperiorDerecha", "Esquina_SuperiorIzquierda" };
-
-        Transform cornersParent = transform.Find("EsquinasPared");
-        if (cornersParent == null)
-        {
-            GameObject parentObj = new GameObject("EsquinasPared");
-            cornersParent = parentObj.transform;
-            cornersParent.SetParent(transform, false);
-        }
-        cornersParent.localPosition = Vector3.zero;
-        cornersParent.rotation = LayoutRotation;
-
-        Transform[] cornerRefs = new Transform[4];
-        for (int i = 0; i < 4; i++)
-        {
-            Transform existing = cornersParent.Find(names[i]);
-            if (existing == null)
-            {
-                GameObject cObj = new GameObject(names[i]);
-                cObj.transform.SetParent(cornersParent, false);
-                cObj.transform.localPosition = corners[i];
-                cornerRefs[i] = cObj.transform;
-            }
-            else
-            {
-                cornerRefs[i] = existing;
-            }
-        }
-
-        cornerBottomLeft = cornerRefs[0];
-        cornerBottomRight = cornerRefs[1];
-        cornerTopRight = cornerRefs[2];
-        cornerTopLeft = cornerRefs[3];
-        areaShape = AreaShape.CustomCorners;
-
-        Debug.Log("[TargetPlaneSpawner] Esquinas de la pared generadas y asignadas con éxito.");
-    }
-
-    /// <summary>
-    /// Crea o actualiza el plano visual para que se adapte exactamente a las dimensiones en el Inspector.
-    /// </summary>
     [ContextMenu("Actualizar Plano Visual")]
     public void UpdateVisualPlane()
     {
         if (!showVisualPlane)
         {
-            if (planeVisualObject != null)
-                planeVisualObject.SetActive(false);
+            if (planeVisualObject != null) planeVisualObject.SetActive(false);
             return;
         }
 
@@ -765,7 +647,6 @@ public class TargetPlaneSpawner : MonoBehaviour
             planeVisualObject.name = "PlaneVisual";
             planeVisualObject.transform.SetParent(transform, false);
 
-            // Eliminar collider para que no interfiera con rayos o toques
             Collider col = planeVisualObject.GetComponent<Collider>();
             if (col != null)
             {
@@ -774,12 +655,10 @@ public class TargetPlaneSpawner : MonoBehaviour
             }
         }
 
-        // Posicionar y escalar (un Quad en Unity mide 1x1 en X-Y, rotamos para alinearlo con el target local X-Z)
-        planeVisualObject.transform.localPosition = planeOffset + new Vector3(0, 0.001f, 0); // ligeramente elevado para evitar Z-fighting
+        planeVisualObject.transform.localPosition = planeOffset + new Vector3(0, 0.001f, 0);
         planeVisualObject.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
         planeVisualObject.transform.localScale = new Vector3(planeSize.x, planeSize.y, 1f);
 
-        // Configurar Material
         MeshRenderer meshRenderer = planeVisualObject.GetComponent<MeshRenderer>();
         if (meshRenderer != null)
         {
@@ -789,7 +668,6 @@ public class TargetPlaneSpawner : MonoBehaviour
             }
             else
             {
-                // Material por defecto elegante y semitransparente
                 Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
                 if (shader == null) shader = Shader.Find("Sprites/Default");
                 if (shader == null) shader = Shader.Find("Standard");
@@ -804,41 +682,6 @@ public class TargetPlaneSpawner : MonoBehaviour
 
         planeVisualObject.SetActive(showVisualPlane && (!Application.isPlaying || isCurrentlyTracked));
         UpdateLayoutPose();
-    }
-
-    /// <summary>
-    /// Genera un modelo de globo 3D procedural listo para usarse si no hay prefab asignado.
-    /// </summary>
-    private GameObject CreateFallbackBalloonObject()
-    {
-        GameObject balloonRoot = new GameObject("GloboProcedural");
-
-        // Cuerpo del globo (esfera ligeramente estirada)
-        GameObject body = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        body.name = "Body";
-        body.transform.SetParent(balloonRoot.transform, false);
-        body.transform.localScale = new Vector3(0.2f, 0.26f, 0.2f);
-        body.transform.localPosition = new Vector3(0, 0.13f, 0);
-
-        // Nudo del globo (pequeño cono/cilindro abajo)
-        GameObject knot = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-        knot.name = "Knot";
-        knot.transform.SetParent(balloonRoot.transform, false);
-        knot.transform.localScale = new Vector3(0.04f, 0.02f, 0.04f);
-        knot.transform.localPosition = new Vector3(0, -0.01f, 0);
-
-        // Quitar colliders por defecto del fallback
-        Collider c1 = body.GetComponent<Collider>();
-        if (c1 != null) { if (Application.isPlaying) Destroy(c1); else DestroyImmediate(c1); }
-        Collider c2 = knot.GetComponent<Collider>();
-        if (c2 != null) { if (Application.isPlaying) Destroy(c2); else DestroyImmediate(c2); }
-
-        // Agregar SphereCollider en la raíz para posibles toques/interacciones
-        SphereCollider rootCol = balloonRoot.AddComponent<SphereCollider>();
-        rootCol.center = new Vector3(0, 0.13f, 0);
-        rootCol.radius = 0.15f;
-
-        return balloonRoot;
     }
 
     private void OnDrawGizmosSelected()
@@ -857,39 +700,23 @@ public class TargetPlaneSpawner : MonoBehaviour
 
         if (areaShape == AreaShape.RectangularPlane || areaShape == AreaShape.CustomCorners)
         {
-            // Dibujar el plano completo (borde exterior)
-            Vector3[] outerCorners = GetPlaneCorners(false);
+            Vector3 center = planeOffset;
             Gizmos.color = isSelected ? new Color(0f, 0.8f, 1f, 0.9f) : new Color(0f, 0.5f, 0.8f, 0.4f);
-            for (int i = 0; i < 4; i++)
-            {
-                Gizmos.DrawLine(outerCorners[i], outerCorners[(i + 1) % 4]);
-            }
+            Gizmos.DrawWireCube(center, new Vector3(planeSize.x, 0.01f, planeSize.y));
 
-            // Dibujar esferas en las 4 esquinas de la pared
-            Gizmos.color = Color.magenta;
-            for (int i = 0; i < 4; i++)
-            {
-                Gizmos.DrawWireSphere(outerCorners[i], 0.04f);
-            }
-
-            // Dibujar el área segura interna (respetando el cornerMargin)
-            Vector3[] safeCorners = GetPlaneCorners(true);
+            float safeW = Mathf.Max(0.01f, planeSize.x - cornerMargin * 2f);
+            float safeH = Mathf.Max(0.01f, planeSize.y - cornerMargin * 2f);
             Gizmos.color = Color.yellow;
-            for (int i = 0; i < 4; i++)
-            {
-                Gizmos.DrawLine(safeCorners[i], safeCorners[(i + 1) % 4]);
-            }
+            Gizmos.DrawWireCube(center, new Vector3(safeW, 0.01f, safeH));
         }
         else
         {
-            // Círculo invisible de radio X
             Gizmos.color = isSelected ? Color.cyan : new Color(0f, 0.8f, 1f, 0.4f);
             DrawWireCircle(planeOffset, circleRadius);
 
             if (areaShape == AreaShape.Circle_OriginRay)
             {
-                // Círculo exterior a distancia Y
-                Gizmos.color = new Color(0.2f, 1f, 0.4f, 0.35f);
+                Gizmos.color = new Color(0.2f, 1f, 0.4f, 0.4f);
                 DrawWireCircle(planeOffset, circleRadius + circleCrossDistanceY);
             }
             else
@@ -899,36 +726,23 @@ public class TargetPlaneSpawner : MonoBehaviour
             }
         }
 
-        // Dibujar rayos desde el origen hasta los globos generados
-        if (drawRayGizmos && spawnedPositions != null && spawnedPositions.Count > 0)
+        if (drawRayGizmos && spawnedPositions.Count > 0)
         {
             for (int i = 0; i < spawnedPositions.Count; i++)
             {
                 Vector3 targetPos = spawnedPositions[i];
-
                 if (areaShape == AreaShape.Circle_OriginRay && i < spawnedCrossPoints.Count)
                 {
-                    Vector3 crossPos = spawnedCrossPoints[i];
-                    // Línea desde el origen hasta el círculo de radio X (Cyan)
                     Gizmos.color = Color.cyan;
-                    Gizmos.DrawLine(planeOffset, crossPos);
-
-                    // Punto de cruce en el círculo (Esfera amarilla)
-                    Gizmos.color = Color.yellow;
-                    Gizmos.DrawWireSphere(crossPos, 0.025f);
-
-                    // Línea desde el cruce hasta el punto final a distancia Y (Verde)
+                    Gizmos.DrawLine(planeOffset, spawnedCrossPoints[i]);
                     Gizmos.color = Color.green;
-                    Gizmos.DrawLine(crossPos, targetPos);
+                    Gizmos.DrawLine(spawnedCrossPoints[i], targetPos);
                 }
                 else
                 {
-                    // Línea directa desde el origen
                     Gizmos.color = new Color(0f, 0.9f, 0.9f, 0.4f);
                     Gizmos.DrawLine(planeOffset, targetPos);
                 }
-
-                // Radio de distancia mínima alrededor de cada globo
                 Gizmos.color = new Color(0.2f, 1f, 0.2f, 0.5f);
                 Gizmos.DrawWireSphere(targetPos, minDistanceBetweenObjects * 0.5f);
             }

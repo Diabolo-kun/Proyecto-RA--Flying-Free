@@ -181,8 +181,12 @@ public class ARGameSpace : MonoBehaviour
     {
         Vector3 normal = marker.up;
         if (camera != null && Vector3.Dot(normal, camera.transform.position - marker.position) < 0) normal = -normal;
-        Vector3 viewUp = camera != null ? camera.transform.up : marker.forward;
-        Vector3 imageUp = Vector3.ProjectOnPlane(viewUp, normal);
+        // Priorizar la vertical de la gravedad real (Vector3.up del mundo) proyectada en el plano del marcador.
+        // Si el marcador está en pared vertical, la proyección da la vertical exacta hacia el techo, inmune
+        // a cómo se mueva o ladee el móvil. Si el marcador está horizontal (mesa), usar fallback.
+        Vector3 gravityUp = Vector3.ProjectOnPlane(Vector3.up, normal);
+        Vector3 imageUp = gravityUp.sqrMagnitude > .01f ? gravityUp.normalized
+            : (camera != null ? Vector3.ProjectOnPlane(camera.transform.up, normal) : marker.forward);
         if (imageUp.sqrMagnitude < .001f) imageUp = marker.forward;
         return Quaternion.LookRotation(imageUp.normalized, normal);
     }
