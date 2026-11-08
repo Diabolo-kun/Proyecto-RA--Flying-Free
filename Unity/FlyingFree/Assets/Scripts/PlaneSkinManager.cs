@@ -402,7 +402,17 @@ public class PlaneSkinManager : MonoBehaviour
     /// </summary>
     public void ResetToDefault()
     {
-        if (skinsDisponibles.Count > 0)
+        PlaneSkinEntry cuaderno = skinsDisponibles.Find(s =>
+            (!string.IsNullOrEmpty(s.EffectiveId) && s.EffectiveId.IndexOf("cuaderno", StringComparison.OrdinalIgnoreCase) >= 0) ||
+            (!string.IsNullOrEmpty(s.EffectiveDisplayName) && s.EffectiveDisplayName.IndexOf("cuaderno", StringComparison.OrdinalIgnoreCase) >= 0) ||
+            (s.perfil != null && s.perfil.name != null && s.perfil.name.IndexOf("cuaderno", StringComparison.OrdinalIgnoreCase) >= 0));
+
+        if (cuaderno != null)
+        {
+            skinActivo = cuaderno;
+            PlayerPrefs.SetString(PrefKeySelectedSkin, skinActivo.EffectiveId);
+        }
+        else if (skinsDisponibles.Count > 0)
         {
             skinActivo = skinsDisponibles[0];
             PlayerPrefs.SetString(PrefKeySelectedSkin, skinActivo.EffectiveId);
@@ -416,9 +426,11 @@ public class PlaneSkinManager : MonoBehaviour
         {
             PlayerPrefs.DeleteKey(PrefKeySelectedSkin);
         }
+
+        PlayerPrefs.SetString("FlyingFree.AvionSeleccionado", "Avion_Cuaderno");
         PlayerPrefs.Save();
 
-        Debug.Log($"[PlaneSkinManager] Avión restablecido al modelo estándar: {GetActiveSkinName()}");
+        Debug.Log($"[PlaneSkinManager] Avión restablecido a Cuaderno: {GetActiveSkinName()}");
         OnSkinChanged?.Invoke(skinActivo);
     }
 }

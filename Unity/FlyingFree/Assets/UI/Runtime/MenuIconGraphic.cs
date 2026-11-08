@@ -7,7 +7,7 @@ namespace FlyingFree.UI
     [RequireComponent(typeof(CanvasRenderer))]
     public sealed class MenuIconGraphic : MaskableGraphic
     {
-        public enum Symbol { Play, Gear, Exit, Back, Speaker, Music, Check }
+        public enum Symbol { Play, Gear, Exit, Back, Speaker, Music, Check, Pause, Help }
         public Symbol symbol;
         VertexHelper mesh;
         protected override void OnPopulateMesh(VertexHelper vh)
@@ -17,6 +17,14 @@ namespace FlyingFree.UI
             {
                 case Symbol.Play:
                     Poly(color,new Vector2(.22f,.08f),new Vector2(.86f,.5f),new Vector2(.22f,.92f));break;
+                case Symbol.Pause:
+                    Poly(color,new Vector2(.22f,.14f),new Vector2(.40f,.14f),new Vector2(.40f,.86f),new Vector2(.22f,.86f));
+                    Poly(color,new Vector2(.60f,.14f),new Vector2(.78f,.14f),new Vector2(.78f,.86f),new Vector2(.60f,.86f));break;
+                case Symbol.Help:
+                    // Interrogación simple para el botón de ayuda.
+                    Circle(.50f,.72f,.10f);
+                    Poly(color,new Vector2(.42f,.52f),new Vector2(.58f,.52f),new Vector2(.58f,.62f),new Vector2(.62f,.68f),new Vector2(.50f,.78f),new Vector2(.38f,.68f),new Vector2(.42f,.62f));
+                    Circle(.50f,.28f,.08f);break;
                 case Symbol.Gear:
                     for(int i=0;i<40;i++)
                     {

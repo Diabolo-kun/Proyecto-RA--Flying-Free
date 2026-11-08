@@ -88,9 +88,18 @@ namespace FlyingFree.UI
 
         private void ActualizarTextoAvion()
         {
-            string nombre = PlaneSkinManager.Instance != null 
-                ? PlaneSkinManager.Instance.GetActiveSkinName() 
-                : "Estándar";
+            string elegido = PlayerPrefs.GetString("FlyingFree.AvionSeleccionado", "");
+            if (!string.IsNullOrEmpty(elegido))
+            {
+                if (elegido.StartsWith("Avion_"))
+                    elegido = elegido.Substring("Avion_".Length);
+                SetPlaneStatusText(elegido);
+                return;
+            }
+
+            string nombre = PlaneSkinManager.Instance != null
+                ? PlaneSkinManager.Instance.GetActiveSkinName()
+                : "Cuaderno";
             SetPlaneStatusText(nombre);
         }
 
@@ -127,16 +136,17 @@ namespace FlyingFree.UI
         }
         public void ResetPlane()
         {
-            Debug.Log("[FlyingFreeMenu] Restableciendo avión a estándar...");
+            // El modelo de juego (marca / GameRA) usa esta clave.
+            PlayerPrefs.SetString("FlyingFree.AvionSeleccionado", "Avion_Cuaderno");
+            PlayerPrefs.Save();
+
             if (PlaneSkinManager.Instance != null)
-            {
                 PlaneSkinManager.Instance.ResetToDefault();
-            }
-            else
-            {
-                SetPlaneStatusText("Estándar");
-            }
+
+            SetPlaneStatusText("Cuaderno");
+            ActualizarTextoAvion();
             onResetPlaneRequested.Invoke();
+            Debug.Log("[FlyingFreeMenu] Avión restablecido a Cuaderno.");
         }
         /// <summary>Modifica dinámicamente el texto que acompaña al botón de configuración del avión.</summary>
         public void SetPlaneStatusText(string newText)

@@ -3,93 +3,83 @@ using UnityEngine.InputSystem;
 using Gyroscope = UnityEngine.InputSystem.Gyroscope;
 
 /// <summary>
-/// Detecta un impulso corto hacia delante del móvil (no un agitado) y lanza
-/// un avión de papel en la dirección de la ARCamera de Vuforia.
-///
-/// Lee acelerómetro y giroscopio con el Input System (el proyecto no usa
-/// Input.acceleration clásico, que en Android se queda siempre a cero).
+/// Lanza el avión con un movimiento brusco del móvil.
+/// No usa toques. Se integra con GameManagerRA y el avión elegido.
 /// </summary>
 public class LanzarAvionMovimiento : MonoBehaviour
 {
     [Header("Referencias")]
-    [Tooltip("ARCamera de Vuforia. Si se deja vacío usa Camera.main.")]
     public Camera arCamera;
-    [Tooltip("Prefab del avión. Preferible Avion_Estandar con PaperPlane en la raíz.")]
     public GameObject avionPrefab;
-    [Tooltip("GameSpace / Image Target. Define el espacio de vuelo anclado a AR.")]
+    public GameObject[] avionesElegibles;
     public Transform arReference;
 
-    [Header("Configuración")]
-    [Tooltip("Aceleración mínima hacia delante (g) para considerar un lanzamiento.")]
-    public float umbralLanzamiento = 1.3f;
-    [Tooltip("Si el movimiento lateral supera esto, se trata como agitado y se ignora.")]
-    public float umbralLateral = 1.8f;
-    [Tooltip("Velocidad angular máxima (rad/s) para no lanzar al girar el móvil.")]
-    public float umbralGiro = 6f;
-    [Tooltip("Velocidad de vuelo que se aplica al PaperPlane al nacer.")]
+    [Header("Detección del impulso")]
+    [Tooltip("Aceleración mínima (g). Más bajo = más fácil.")]
+    public float umbralLanzamiento = 0.12f;
+    public float tiempoEntreLanzamientos = 0.8f;
+
+    [Header("Avión")]
     public float velocidadAvion = 5f;
-    [Tooltip("Segundos mínimos entre un lanzamiento y el siguiente.")]
-    public float tiempoEntreLanzamientos = 0.5f;
-    [Tooltip("Distancia delante de la cámara a la que aparece el avión (metros).")]
-    public float distanciaSpawn = 0.4f;
+    public float distanciaSpawn = 0.35f;
+    public float tamañoAvion = 3f;
     public bool scaleWithReference = true;
-    public bool usarGiroscopio = true;
-    public bool mostrarDebug = true;
-    [Tooltip("En el Editor, Espacio o clic lanza un avión (el acelerómetro no existe en PC).")]
+
+    [Header("Ayuda")]
+    public bool mostrarAyuda = false;
     public bool permitirPruebaEnEditor = true;
 
-    private const float GravedadMs2 = 9.80665f;
+    const float GravedadMs2 = 9.80665f;
+    const string ClaveAvion = "FlyingFree.AvionSeleccionado";
+    const string AvionDefecto = "Avion_Cuaderno";
 
-    private float ultimoLanzamiento = -10f;
-    private Vector3 gravedadFiltrada;
-    private bool gestoDisponible = true;
-    private float siguienteLog;
-    private float minimoZ;
-    private float maximoZ;
-    private float ultimoImpulso;
-    private float ultimoLateral;
-    private float ultimoGiro;
-    private Vector3 ultimaAceleracionG;
-    private string fuenteSensor = "buscando sensores...";
-    private string ultimoMotivo = "Apunta a los globos e impulsa el móvil hacia delante.";
+    float ultimoLanzamiento = -10f;
+    Vector3 muestraAnterior;
+    bool hayMuestraAnterior;
+    bool gestoDisponible = true;
+    float ultimoImpulso;
+    float picoImpulso;
+    string fuenteSensor = "buscando sensores...";
+    string ultimoMotivo = "Con la marca a la vista, da un golpe hacia delante con el móvil.";
+    PaperPlane avionActual;
+    System.Action<bool> alTerminar;
 
-    private void OnEnable()
+    void OnEnable()
     {
         ActivarSensores();
         InputSystem.onDeviceChange += OnDeviceChange;
     }
 
-    private void OnDisable()
+    void OnDisable()
     {
         InputSystem.onDeviceChange -= OnDeviceChange;
+        SoltarAvionActual();
     }
 
-    private void Start()
+    void Start()
     {
         if (arCamera == null)
             arCamera = Camera.main;
 
         EnsureGameSpaceReference();
         ActivarSensores();
-        gravedadFiltrada = LeerAceleracionEnG();
+        InvokeRepeating(nameof(ActivarSensores), 1f, 2f);
     }
 
-    private void OnDeviceChange(InputDevice device, InputDeviceChange change)
+    void OnDeviceChange(InputDevice device, InputDeviceChange change)
     {
         if (change == InputDeviceChange.Added || change == InputDeviceChange.Reconnected ||
             change == InputDeviceChange.Enabled)
-        {
             ActivarSensores();
-        }
     }
 
-    private static void EnableIfPresent(InputDevice device)
+    static void EnableIfPresent(InputDevice device)
     {
         if (device != null && !device.enabled)
             InputSystem.EnableDevice(device);
     }
 
-    private void ActivarSensores()
+    void ActivarSensores()
     {
         EnableIfPresent(Accelerometer.current);
         EnableIfPresent(LinearAccelerationSensor.current);
@@ -97,15 +87,20 @@ public class LanzarAvionMovimiento : MonoBehaviour
         EnableIfPresent(Gyroscope.current);
         EnableIfPresent(AttitudeSensor.current);
 
-        if (Accelerometer.current != null)
-            Accelerometer.current.samplingFrequency = 60f;
-        if (LinearAccelerationSensor.current != null)
-            LinearAccelerationSensor.current.samplingFrequency = 60f;
-        if (Gyroscope.current != null)
-            Gyroscope.current.samplingFrequency = 60f;
+        try
+        {
+            if (Accelerometer.current != null)
+                Accelerometer.current.samplingFrequency = 50f;
+            if (LinearAccelerationSensor.current != null)
+                LinearAccelerationSensor.current.samplingFrequency = 50f;
+        }
+        catch
+        {
+            // Algunos Samsung no dejan subir la frecuencia.
+        }
     }
 
-    private void EnsureGameSpaceReference()
+    void EnsureGameSpaceReference()
     {
         ARGameSpace gs = ARGameSpace.GetOrCreateInstance();
         if (gs == null) return;
@@ -114,113 +109,110 @@ public class LanzarAvionMovimiento : MonoBehaviour
             arReference = gs.transform;
     }
 
-    private void Update()
+    void Update()
     {
+        if (avionActual != null)
+        {
+            if (!avionActual.IsFlying)
+                SoltarAvionActual();
+            ultimoMotivo = "Avión en vuelo...";
+            return;
+        }
+
         if (permitirPruebaEnEditor && Application.isEditor)
         {
-            bool espacio = Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame;
-            bool clic = Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame;
-            if (espacio || clic)
+            if (Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame)
             {
                 IntentarLanzar();
                 return;
             }
         }
 
-        Vector3 aceleracionG = LeerAceleracionEnG();
-        ultimaAceleracionG = aceleracionG;
+        if (!LeerAceleracion(out Vector3 muestra))
+        {
+            ultimoMotivo = "El móvil no da acelerómetro. Mira Ajustes > Apps > FlyingFree.";
+            return;
+        }
 
-        Vector3 movimientoG;
+        float impulso = 0f;
+        if (hayMuestraAnterior)
+            impulso = (muestra - muestraAnterior).magnitude;
+        muestraAnterior = muestra;
+        hayMuestraAnterior = true;
+
+        // También mira aceleración lineal absoluta, por si el delta sale flojo.
         if (LinearAccelerationSensor.current != null && LinearAccelerationSensor.current.enabled)
         {
-            movimientoG = LinearAccelerationSensor.current.acceleration.ReadValue() / GravedadMs2;
-            fuenteSensor = "LinearAcceleration";
+            float lineal = LinearAccelerationSensor.current.acceleration.ReadValue().magnitude / GravedadMs2;
+            impulso = Mathf.Max(impulso, lineal);
         }
-        else
-        {
-            gravedadFiltrada = Vector3.Lerp(
-                gravedadFiltrada,
-                aceleracionG,
-                Mathf.Clamp01(Time.deltaTime * 2f)
-            );
-            movimientoG = aceleracionG - gravedadFiltrada;
-            fuenteSensor = Accelerometer.current != null && Accelerometer.current.enabled ? "Accelerometer" : "SIN SENSOR";
-        }
-
-        // En el móvil, Z positivo sale de la pantalla hacia el usuario.
-        // Empujar el teléfono hacia la escena (lanzar el avión) es Z negativo.
-        float impulso = -movimientoG.z;
-        float lateral = new Vector2(movimientoG.x, movimientoG.y).magnitude;
-        float giro = LeerGiro();
 
         ultimoImpulso = impulso;
-        ultimoLateral = lateral;
-        ultimoGiro = giro;
+        if (impulso > picoImpulso)
+            picoImpulso = impulso;
 
-        if (mostrarDebug && !Application.isEditor)
-        {
-            minimoZ = Mathf.Min(minimoZ, movimientoG.z);
-            maximoZ = Mathf.Max(maximoZ, movimientoG.z);
-
-            if (Time.unscaledTime >= siguienteLog)
-            {
-                Debug.Log($"[LanzarAvionMovimiento] Sensor={fuenteSensor} Accel={aceleracionG:F2} " +
-                          $"Z min/max={minimoZ:F2}/{maximoZ:F2} Umbral={umbralLanzamiento:F2} " +
-                          $"Lateral={lateral:F2} Giro={giro:F2} Estado={ultimoMotivo}", this);
-                siguienteLog = Time.unscaledTime + 1f;
-                minimoZ = maximoZ = 0f;
-            }
-        }
-
-        if (impulso <= umbralLanzamiento * 0.5f)
+        if (impulso <= umbralLanzamiento * 0.35f)
             gestoDisponible = true;
 
-        if (!gestoDisponible || impulso <= umbralLanzamiento)
-            return;
+        ActualizarMotivoEspera();
 
-        if (lateral > umbralLateral && lateral > impulso)
-        {
-            ultimoMotivo = "Agitado detectado (movimiento lateral). Impulsa hacia delante.";
+        if (!gestoDisponible || impulso < umbralLanzamiento)
             return;
-        }
-
-        if (usarGiroscopio && giro > umbralGiro)
-        {
-            ultimoMotivo = "Giro detectado. Mantén el móvil estable y empuja hacia delante.";
-            return;
-        }
 
         gestoDisponible = false;
         IntentarLanzar();
     }
 
-    private Vector3 LeerAceleracionEnG()
+    void ActualizarMotivoEspera()
+    {
+        var game = GameManagerRA.Instance;
+        if (game != null && !game.PuedeLanzar)
+        {
+            if (game.EsperandoSeguimiento)
+                ultimoMotivo = "Enfoca la marca de los globos y manténla estable.";
+            else if (game.AvionesEnVuelo > 0)
+                ultimoMotivo = "Espera a que termine el avión en vuelo.";
+            else if (!game.PartidaEnCurso)
+                ultimoMotivo = "La partida no está en curso.";
+            else
+                ultimoMotivo = "Ahora no se puede lanzar.";
+            return;
+        }
+
+        if (fuenteSensor.Contains("SIN"))
+            ultimoMotivo = "Sin sensor de movimiento.";
+        else
+            ultimoMotivo = "Da un golpe seco hacia delante con el móvil.";
+    }
+
+    bool LeerAceleracion(out Vector3 muestraEnG)
     {
         if (Accelerometer.current != null)
         {
             if (!Accelerometer.current.enabled)
                 InputSystem.EnableDevice(Accelerometer.current);
-            return Accelerometer.current.acceleration.ReadValue() / GravedadMs2;
+
+            muestraEnG = Accelerometer.current.acceleration.ReadValue() / GravedadMs2;
+            fuenteSensor = "Accelerometer";
+            return muestraEnG.sqrMagnitude > 0.0001f;
         }
 
-        return Vector3.zero;
+        if (LinearAccelerationSensor.current != null)
+        {
+            if (!LinearAccelerationSensor.current.enabled)
+                InputSystem.EnableDevice(LinearAccelerationSensor.current);
+
+            muestraEnG = LinearAccelerationSensor.current.acceleration.ReadValue() / GravedadMs2;
+            fuenteSensor = "LinearAcceleration";
+            return true;
+        }
+
+        muestraEnG = Vector3.zero;
+        fuenteSensor = "SIN SENSOR";
+        return false;
     }
 
-    private float LeerGiro()
-    {
-        if (!usarGiroscopio)
-            return 0f;
-
-        if (Gyroscope.current == null)
-            return 0f;
-
-        if (!Gyroscope.current.enabled)
-            InputSystem.EnableDevice(Gyroscope.current);
-
-        return Gyroscope.current.angularVelocity.ReadValue().magnitude;
-    }
-
-    private void IntentarLanzar()
+    void IntentarLanzar()
     {
         if (Time.time - ultimoLanzamiento < tiempoEntreLanzamientos)
             return;
@@ -229,84 +221,110 @@ public class LanzarAvionMovimiento : MonoBehaviour
         {
             ultimoLanzamiento = Time.time;
             ultimoMotivo = "¡Avión lanzado!";
+            picoImpulso = 0f;
             Debug.Log("[LanzarAvionMovimiento] ¡Avión lanzado!", this);
         }
     }
 
-    private bool LanzarAvion()
+    bool LanzarAvion()
     {
         EnsureGameSpaceReference();
 
         if (arCamera == null)
             arCamera = Camera.main;
 
-        if (avionPrefab == null && PlaneSkinManager.Instance != null)
+        var game = GameManagerRA.Instance;
+        if (game != null && !game.PuedeLanzar)
         {
-            PaperPlane activo = PlaneSkinManager.Instance.GetActivePrefab();
-            if (activo != null) avionPrefab = activo.gameObject;
-        }
-
-        if (arCamera == null || avionPrefab == null)
-        {
-            Debug.LogError("[LanzarAvionMovimiento] Falta ARCamera o Avion Prefab.", this);
-            ultimoMotivo = "Falta asignar ARCamera o el prefab del avión.";
+            ActualizarMotivoEspera();
             return false;
         }
 
-        float escala = (arReference != null && scaleWithReference)
-            ? arReference.lossyScale.x
+        GameObject origen = AvionElegido();
+        if (origen == null)
+            origen = avionPrefab;
+
+        if (origen == null && PlaneSkinManager.Instance != null)
+        {
+            PaperPlane activo = PlaneSkinManager.Instance.GetActivePrefab();
+            if (activo != null) origen = activo.gameObject;
+        }
+
+        if (arCamera == null || origen == null)
+        {
+            ultimoMotivo = "Falta la cámara AR o el prefab del avión.";
+            return false;
+        }
+
+        float escalaRef = (arReference != null && scaleWithReference)
+            ? Mathf.Max(arReference.lossyScale.x, 0.01f)
             : 1f;
+        float escala = escalaRef * Mathf.Max(0.1f, tamañoAvion);
 
         Vector3 direccion = arCamera.transform.forward;
-        Vector3 posicion = arCamera.transform.position + direccion * (distanciaSpawn * Mathf.Max(escala, 0.01f));
+        Vector3 posicion = arCamera.transform.position + direccion * (distanciaSpawn * escalaRef);
 
-        GameObject avion = Instantiate(avionPrefab, posicion, Quaternion.LookRotation(direccion));
-        avion.transform.localScale *= escala;
+        GameObject avion = Instantiate(origen, posicion, Quaternion.LookRotation(direccion));
+        avion.transform.localScale = Vector3.Scale(avion.transform.localScale, Vector3.one * escala);
 
-        PaperPlane plane = avion.GetComponent<PaperPlane>();
-        if (plane != null)
+        PaperPlane plane = TouchFlightController.PrepararAvion(avion);
+        if (plane == null)
         {
-            plane.forwardSpeed = velocidadAvion;
-            plane.Initialize(direccion, arReference);
-            return true;
+            Destroy(avion);
+            ultimoMotivo = "El prefab del avión no es válido.";
+            return false;
         }
 
-        Rigidbody rb = avion.GetComponent<Rigidbody>();
-        if (rb != null)
+        plane.forwardSpeed = velocidadAvion;
+        plane.Initialize(direccion, arReference);
+
+        if (game != null && !game.TryRegisterLaunch(plane))
         {
-            rb.isKinematic = false;
-            rb.useGravity = false;
-            rb.linearVelocity = direccion * velocidadAvion;
-            Destroy(avion, 12f);
-            return true;
+            plane.CancelForRoundEnd();
+            ultimoMotivo = "La partida no aceptó el lanzamiento.";
+            return false;
         }
 
-        Debug.LogError("[LanzarAvionMovimiento] El prefab no tiene PaperPlane ni Rigidbody.", avionPrefab);
-        Destroy(avion);
-        return false;
+        avionActual = plane;
+        alTerminar = _ =>
+        {
+            if (avionActual == plane)
+                SoltarAvionActual();
+        };
+        plane.OnFinished += alTerminar;
+        return true;
     }
 
-    private void OnGUI()
+    GameObject AvionElegido()
     {
-        if (!mostrarDebug) return;
+        string nombre = PlayerPrefs.GetString(ClaveAvion, "");
+        if (string.IsNullOrEmpty(nombre))
+            nombre = AvionDefecto;
 
-        const int pad = 16;
-        GUI.Box(new Rect(pad, pad, 460, 188), "");
-        GUILayout.BeginArea(new Rect(pad + 10, pad + 8, 440, 172));
-        GUILayout.Label("PRUEBA · LANZAMIENTO POR IMPULSO");
-        GUILayout.Label(ultimoMotivo);
-        if (!Application.isEditor)
-        {
-            GUILayout.Label($"Sensor: {fuenteSensor}");
-            GUILayout.Label($"Accel g: {ultimaAceleracionG.x:0.00}, {ultimaAceleracionG.y:0.00}, {ultimaAceleracionG.z:0.00}");
-            GUILayout.Label($"Impulso Z: {ultimoImpulso:0.00}  (umbral {umbralLanzamiento:0.00})");
-            GUILayout.Label($"Lateral: {ultimoLateral:0.00}   Giro: {ultimoGiro:0.00}");
-        }
-        else
-        {
-            GUILayout.Label("Editor: pulsa Espacio o clic para lanzar.");
-        }
-        GUILayout.EndArea();
+        GameObject elegido = BuscarAvion(nombre);
+        return elegido != null ? elegido : BuscarAvion(AvionDefecto);
     }
-}
 
+    GameObject BuscarAvion(string nombre)
+    {
+        if (avionesElegibles == null || string.IsNullOrEmpty(nombre))
+            return null;
+
+        for (int i = 0; i < avionesElegibles.Length; i++)
+        {
+            if (avionesElegibles[i] != null && avionesElegibles[i].name == nombre)
+                return avionesElegibles[i];
+        }
+
+        return null;
+    }
+
+    void SoltarAvionActual()
+    {
+        if (avionActual != null && alTerminar != null)
+            avionActual.OnFinished -= alTerminar;
+        avionActual = null;
+        alTerminar = null;
+    }
+
+}

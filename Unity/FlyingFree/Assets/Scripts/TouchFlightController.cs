@@ -1,17 +1,15 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.InputSystem;
+using UnityEngine.UI;
 
 /// <summary>
 /// Al tocar la pantalla: lanza un avión de papel desde la cámara AR.
 /// Mientras se mantiene el dedo: muestra un joystick flotante en el punto del toque
 /// y envía su valor al avión. Al soltar, el joystick se oculta y el avión sigue recto.
 ///
-/// La cámara NO sigue al avión: es la ARCamera de Vuforia y se mueve con el dispositivo.
-/// El avión se instancia en el mundo (sin parent) para que no desaparezca
-/// si Vuforia pierde el tracking del target.
-///
-/// Usa Input.GetMouseButton*, que en Android equivale al primer dedo
-/// y permite probar con ratón en el editor.
+/// Usa el Input System nuevo (el proyecto no tiene activo el Input Manager clásico).
 /// </summary>
 public class TouchFlightController : MonoBehaviour
 {
@@ -42,6 +40,8 @@ public class TouchFlightController : MonoBehaviour
     [Range(0f, 0.5f)]
     [SerializeField] private float deadZone = 0.1f;
 
+    static readonly List<RaycastResult> ResultadosUi = new List<RaycastResult>(8);
+
     private PaperPlane currentPlane;
     private System.Action<bool> currentFinishedHandler;
     public PaperPlane CurrentPlane => currentPlane;
@@ -61,32 +61,26 @@ public class TouchFlightController : MonoBehaviour
         ARGameSpace gs = ARGameSpace.GetOrCreateInstance();
         if (gs != null)
         {
-            // Si no tiene referencia asignada o apuntaba al ImageTarget crudo, redirigir a GameSpace
             if (arReference == null || (gs.TargetMarker != null && arReference == gs.TargetMarker))
-            {
                 arReference = gs.transform;
-            }
         }
     }
 
     private void Update()
     {
-        if (Input.GetMouseButtonDown(0) && !IsPointerOverUI())
-            BeginTouch(Input.mousePosition);
+        if (PointerPressed(out Vector2 pressedPos) && !IsPointerOverUI(pressedPos))
+            BeginTouch(pressedPos);
 
         if (!holding) return;
 
-        if (Input.GetMouseButton(0))
-            UpdateJoystick(Input.mousePosition);
+        if (PointerHeld(out Vector2 heldPos))
+            UpdateJoystick(heldPos);
         else
             EndTouch();
     }
 
     private void OnDisable()
     {
-        // Si otro script (p. ej. GameManagerRA al terminar la partida) desactiva este
-        // controlador con el dedo pulsado, Update deja de ejecutarse y el joystick
-        // se quedaría visible en pantalla. Lo limpiamos aquí.
         holding = false;
 
         if (joystickBase != null)
@@ -96,7 +90,41 @@ public class TouchFlightController : MonoBehaviour
             currentPlane.SetSteering(Vector2.zero);
     }
 
-    // ───────────── Toque ─────────────
+    static bool PointerPressed(out Vector2 position)
+    {
+        if (Touchscreen.current != null && Touchscreen.current.primaryTouch.press.wasPressedThisFrame)
+        {
+            position = Touchscreen.current.primaryTouch.position.ReadValue();
+            return true;
+        }
+
+        if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
+        {
+            position = Mouse.current.position.ReadValue();
+            return true;
+        }
+
+        position = default;
+        return false;
+    }
+
+    static bool PointerHeld(out Vector2 position)
+    {
+        if (Touchscreen.current != null && Touchscreen.current.primaryTouch.press.isPressed)
+        {
+            position = Touchscreen.current.primaryTouch.position.ReadValue();
+            return true;
+        }
+
+        if (Mouse.current != null && Mouse.current.leftButton.isPressed)
+        {
+            position = Mouse.current.position.ReadValue();
+            return true;
+        }
+
+        position = default;
+        return false;
+    }
 
     private void BeginTouch(Vector2 screenPos)
     {
@@ -125,8 +153,6 @@ public class TouchFlightController : MonoBehaviour
         if (currentPlane != null)
             currentPlane.SetSteering(Vector2.zero);
     }
-
-    // ───────────── Avión ─────────────
 
     /// <summary>Entrada común para gestos y pruebas. Solo registra un intento tras un lanzamiento válido.</summary>
     public bool TryLaunch(Vector2 screenPos)
@@ -166,8 +192,6 @@ public class TouchFlightController : MonoBehaviour
         {
             Ray ray = cam.ScreenPointToRay(screenPos);
             Vector3 aimPoint = ray.GetPoint(aimDistance * scale);
-            // En el formato compacto, apuntar a un plano lejano produciría paralaje:
-            // el avión saldría desde abajo y pasaría por debajo del globo pulsado.
             var space = ARGameSpace.Instance;
             if (space != null && space.TargetMarker != null)
             {
@@ -177,9 +201,6 @@ public class TouchFlightController : MonoBehaviour
             dir = (aimPoint - spawnPos).normalized;
         }
 
-        // Sin parent: así no se oculta si Vuforia pierde el target.
-        // Se instancia como GameObject y se busca el componente después, en lugar de
-        // Instantiate<PaperPlane>, para evitar el InvalidCastException de las builds.
         GameObject planeObject = Instantiate(origen, spawnPos, Quaternion.LookRotation(dir));
 
         PaperPlane plane = PrepararAvion(planeObject);
@@ -228,14 +249,14 @@ public class TouchFlightController : MonoBehaviour
         return null;
     }
 
-    static PaperPlane PrepararAvion(GameObject planeObject)
+    public static PaperPlane PrepararAvion(GameObject planeObject)
     {
         var motor = planeObject.GetComponent<FlyingFree.Sprint2.PaperPlaneMotor>();
         Transform modelo = motor != null ? motor.visual : null;
         if (motor != null)
         {
             motor.enabled = false;
-            Destroy(motor);
+            Object.Destroy(motor);
         }
 
         if (modelo == null)
@@ -262,8 +283,6 @@ public class TouchFlightController : MonoBehaviour
         currentFinishedHandler = null;
         currentPlane = null;
 
-        // Si el dedo seguía pulsado, ocultamos el joystick;
-        // para lanzar otro avión hay que soltar y volver a tocar.
         if (holding)
         {
             holding = false;
@@ -273,8 +292,6 @@ public class TouchFlightController : MonoBehaviour
         Debug.Log(hitTarget ? "¡Objetivo alcanzado!" : "El avión se estrelló");
     }
 
-    // ───────────── Joystick ─────────────
-
     private void UpdateJoystick(Vector2 screenPos)
     {
         if (canvas == null || joystickBase == null || joystickHandle == null) return;
@@ -282,8 +299,6 @@ public class TouchFlightController : MonoBehaviour
         float radiusPx = joystickBase.rect.width * 0.5f * scale;
 
         Vector2 delta = Vector2.ClampMagnitude(screenPos - touchOrigin, radiusPx);
-
-        // Posición del stick en unidades del Canvas
         joystickHandle.anchoredPosition = delta / scale;
 
         Vector2 input = delta / Mathf.Max(1, radiusPx);
@@ -293,16 +308,21 @@ public class TouchFlightController : MonoBehaviour
             currentPlane.SetSteering(input);
     }
 
-    // ───────────── Utilidades ─────────────
-
-    private bool IsPointerOverUI()
+    /// <summary>Solo bloquea botones reales. El HUD de texto no debe impedir lanzar.</summary>
+    private bool IsPointerOverUI(Vector2 screenPos)
     {
         if (EventSystem.current == null) return false;
 
-        if (Input.touchCount > 0)
-            return EventSystem.current.IsPointerOverGameObject(Input.GetTouch(0).fingerId);
+        var eventData = new PointerEventData(EventSystem.current) { position = screenPos };
+        ResultadosUi.Clear();
+        EventSystem.current.RaycastAll(eventData, ResultadosUi);
+        for (int i = 0; i < ResultadosUi.Count; i++)
+        {
+            if (ResultadosUi[i].gameObject.GetComponentInParent<Button>() != null)
+                return true;
+        }
 
-        return EventSystem.current.IsPointerOverGameObject();
+        return false;
     }
 
     public void CancelarEntrada()

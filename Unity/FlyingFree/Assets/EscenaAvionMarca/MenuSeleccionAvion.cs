@@ -65,13 +65,14 @@ public static class MenuSeleccionAvion
             icono.color = new Color(0.09019608f, 0.24313726f, 0.33333334f, 1f);
         }
 
-        Colocar(jugar, 330f, 800f, 160f);
-        Colocar(copia.transform, 161f, 760f, 150f);
+        // El layout final lo ajusta MenuInstrucciones al meter su botón.
+        Colocar(jugar, 370f, 780f, 145f);
+        Colocar(copia.transform, 220f, 740f, 135f);
         if (trailer != null)
-            Colocar(trailer, -3f, 760f, 150f);
-        Colocar(config, -167f, 760f, 150f);
+            Colocar(trailer, -70f, 740f, 135f);
+        Colocar(config, -215f, 740f, 135f);
         if (salir != null)
-            Colocar(salir, -331f, 760f, 150f);
+            Colocar(salir, -360f, 740f, 135f);
     }
 
     static void Conectar(Button boton)

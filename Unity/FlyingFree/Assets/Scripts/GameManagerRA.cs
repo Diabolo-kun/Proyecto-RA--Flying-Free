@@ -38,7 +38,7 @@ public class GameManagerRA : MonoBehaviour
     readonly List<PaperPlane> vuelosFueraDeZona = new List<PaperPlane>();
     ScoreManager marcador;
     float tiempoRestante;
-    bool partidaEnCurso, partidaFinalizada, haGanado, resolviendoImpacto, haIniciado;
+    bool partidaEnCurso, partidaFinalizada, haGanado, resolviendoImpacto, haIniciado, partidaPausada;
     int avionesRestantes, lanzamientosRealizados, aciertos, fallos, robados;
     string motivoFinal = "";
     public float TiempoRestante => tiempoRestante;
@@ -47,6 +47,7 @@ public class GameManagerRA : MonoBehaviour
     public bool PartidaEnCurso => partidaEnCurso;
     public bool HaGanado => haGanado;
     public bool HaIniciado => haIniciado;
+    public bool EstaPausada => partidaPausada;
     public bool AvionesIlimitados => avionesIlimitados;
     public int AvionesRestantes => avionesIlimitados ? int.MaxValue : avionesRestantes;
     public int AvionesIniciales => avionesIniciales;
@@ -59,7 +60,8 @@ public class GameManagerRA : MonoBehaviour
     public string MotivoFinal => motivoFinal;
     public bool EsperandoSeguimiento => partidaEnCurso && esperarSeguimientoAR &&
         (ARGameSpace.Instance == null || !ARGameSpace.Instance.IsTracked);
-    public bool PuedeLanzar => partidaEnCurso && !EsperandoSeguimiento && (avionesIlimitados || avionesRestantes > 0) && enVuelo.Count == 0;
+    public bool PuedeLanzar => partidaEnCurso && !partidaPausada && !EsperandoSeguimiento &&
+        (avionesIlimitados || avionesRestantes > 0) && enVuelo.Count == 0;
     public event Action<bool, int> OnPartidaFinalizada;
     public event Action<int> OnAvionesActualizados;
     public event Action OnPartidaIniciada;
@@ -94,7 +96,7 @@ public class GameManagerRA : MonoBehaviour
         foreach (var flock in FindObjectsByType<ControlBandada>(FindObjectsSortMode.None)) flock.LimpiarPajaros();
         CalcularObjetivo(); avionesRestantes = avionesIniciales; lanzamientosRealizados = aciertos = fallos = robados = 0;
         globosContados.Clear(); tiempoRestante = tiempoDeJuego; motivoFinal = "";
-        partidaFinalizada = haGanado = resolviendoImpacto = false; haIniciado = true;
+        partidaFinalizada = haGanado = resolviendoImpacto = partidaPausada = false; haIniciado = true;
         if (canvasVictoria != null) canvasVictoria.SetActive(false);
         if (canvasDerrota != null) canvasDerrota.SetActive(false);
         if (marcador != null) marcador.ResetScore();
@@ -151,13 +153,35 @@ public class GameManagerRA : MonoBehaviour
     void Update()
     {
         if (!partidaEnCurso) return;
-        if (!EsperandoSeguimiento)
+        if (!partidaPausada && !EsperandoSeguimiento)
         {
             tiempoRestante = Mathf.Max(0, tiempoRestante - Time.deltaTime);
             if (tiempoRestante <= 0) FinalizarPartida();
             if (partidaEnCurso) ComprobarVuelosPerdidos();
         }
         ActualizarTextosUI();
+    }
+
+    public void PausarPartida()
+    {
+        if (!partidaEnCurso || partidaFinalizada) return;
+        partidaPausada = true;
+        foreach (var controller in FindObjectsByType<TouchFlightController>(FindObjectsSortMode.None))
+            controller.CancelarEntrada();
+        ActualizarTextosUI();
+    }
+
+    public void ReanudarPartida()
+    {
+        if (!partidaEnCurso || partidaFinalizada) return;
+        partidaPausada = false;
+        ActualizarTextosUI();
+    }
+
+    public void EmpezarDeNuevo()
+    {
+        partidaPausada = false;
+        IniciarPartida();
     }
     void ComprobarVuelosPerdidos()
     {
@@ -209,10 +233,14 @@ public class GameManagerRA : MonoBehaviour
         int score = marcador != null ? marcador.CurrentScore : 0;
         int seconds = Mathf.CeilToInt(tiempoRestante);
         if (textoTiempo != null) textoTiempo.text = $"{seconds / 60:00}:{seconds % 60:00}";
-        if (textoPuntuacion != null) textoPuntuacion.text = $"GLOBOS  {score} / {globosParaGanar}";
+        int globosRestantes = Mathf.Max(0, globosParaGanar - score);
+        if (textoPuntuacion != null) textoPuntuacion.text = globosRestantes.ToString();
         if (textoAviones != null) textoAviones.text = avionesIlimitados ? $"AVIONES  ∞  ·  LANZADOS {lanzamientosRealizados}" : $"AVIONES  {avionesRestantes} / {avionesIniciales}";
-        string status = !partidaEnCurso ? motivoFinal : EsperandoSeguimiento ? "APUNTA A LA MARCA PARA CONTINUAR"
-            : enVuelo.Count > 0 ? (!avionesIlimitados && avionesRestantes == 0 ? "ÚLTIMO AVIÓN EN VUELO" : "CONTROLA TU AVIÓN") : "LANZA TU AVIÓN";
+        string status = !partidaEnCurso ? motivoFinal
+            : partidaPausada ? "PARTIDA EN PAUSA"
+            : EsperandoSeguimiento ? "APUNTA A LA MARCA PARA CONTINUAR"
+            : enVuelo.Count > 0 ? (!avionesIlimitados && avionesRestantes == 0 ? "ÚLTIMO AVIÓN EN VUELO" : "CONTROLA TU AVIÓN")
+            : "LANZA TU AVIÓN";
         if (textoEstado != null) textoEstado.text = status;
         string result = $"{score} de {globosParaGanar} globos\nAciertos: {aciertos} · Fallos: {fallos} · Robos: {robados}\n{motivoFinal}";
         if (textoResultadoVictoria != null) textoResultadoVictoria.text = result;

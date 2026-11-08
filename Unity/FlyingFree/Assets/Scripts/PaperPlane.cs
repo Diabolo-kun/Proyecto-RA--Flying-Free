@@ -43,7 +43,7 @@ public class PaperPlane : MonoBehaviour
     public bool IsFlying => initialized && !finished && !IsCaptured && isActiveAndEnabled;
     /// <summary>Entrada común para triggers, barridos y robo; la pausa AR bloquea todas las interacciones.</summary>
     public bool CanInteract => IsFlying && (GameManagerRA.Instance == null ||
-        (GameManagerRA.Instance.PartidaEnCurso && !GameManagerRA.Instance.EsperandoSeguimiento));
+        (GameManagerRA.Instance.PartidaEnCurso && !GameManagerRA.Instance.EsperandoSeguimiento && !GameManagerRA.Instance.EstaPausada));
     public Vector3 CaptureGripOffset { get; private set; }
     public Vector3 PreviousWorldPosition { get; private set; }
     public Vector3 WorldVelocity => reference != null
@@ -168,7 +168,7 @@ public class PaperPlane : MonoBehaviour
     {
         if (!initialized || IsCaptured) return;
         var game = GameManagerRA.Instance;
-        if (game != null && game.IsPlaneRegistered(this) && game.EsperandoSeguimiento) return;
+        if (game != null && game.IsPlaneRegistered(this) && (game.EsperandoSeguimiento || game.EstaPausada)) return;
         // Reproyectar la posición anterior con la pose ACTUAL del marcador evita falsos barridos al relocalizar AR.
         PreviousWorldPosition = reference != null ? reference.TransformPoint(localPosition) : localPosition;
         Quaternion previousRotation = ReferenceRotation * Quaternion.Euler(pitch, yaw, 0f);

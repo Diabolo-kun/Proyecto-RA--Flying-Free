@@ -418,6 +418,7 @@ GameObject:
   m_Component:
   - component: {fileID: 345642050}
   - component: {fileID: 345642049}
+  - component: {fileID: 345642051}
   m_Layer: 0
   m_Name: Flight_Controller
   m_TagString: Untagged
@@ -432,7 +433,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 345642048}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f45486e0da78e6c499b1a6bb6e29da47, type: 3}
   m_Name: 
@@ -453,6 +454,33 @@ MonoBehaviour:
   joystickBase: {fileID: 1194988542}
   joystickHandle: {fileID: 433344245}
   deadZone: 0.1
+--- !u!114 &345642051
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 345642048}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d4f8c2a91b6e4d3f8a7c5e0b1d2f3a4c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LanzarAvionMovimiento
+  arCamera: {fileID: 369610904}
+  avionPrefab: {fileID: 7341694017595655914, guid: a59ee53fda370f04b94bc73f27d240c8, type: 3}
+  avionesElegibles:
+  - {fileID: 9019324333731354975, guid: a846cde4178607a4da3d79ebb0428fb6, type: 3}
+  - {fileID: 3913206083962907642, guid: 0d0b3211e5e88cc43a1c4185a7971f28, type: 3}
+  - {fileID: 88771024274640976, guid: 8e98f5390e59ef64d80df126390c406f, type: 3}
+  arReference: {fileID: 1828078737}
+  umbralLanzamiento: 0.12
+  tiempoEntreLanzamientos: 0.8
+  velocidadAvion: 5
+  distanciaSpawn: 0.35
+  tamañoAvion: 3
+  scaleWithReference: 1
+  mostrarAyuda: 0
+  permitirPruebaEnEditor: 1
 --- !u!4 &345642050
 Transform:
   m_ObjectHideFlags: 0
