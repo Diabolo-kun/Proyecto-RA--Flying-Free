@@ -82,6 +82,21 @@ public class ARGameSpaceEditor : Editor
             }
         }
 
+        LanzarAvionMovimiento lanzamiento = FindObjectOfType<LanzarAvionMovimiento>();
+        if (lanzamiento != null)
+        {
+            SerializedObject soLaunch = new SerializedObject(lanzamiento);
+            SerializedProperty propCam = soLaunch.FindProperty("arCamera");
+            SerializedProperty propRefLaunch = soLaunch.FindProperty("arReference");
+            if (propCam != null && gs.CameraAR != null)
+                propCam.objectReferenceValue = gs.CameraAR;
+            if (propRefLaunch != null)
+                propRefLaunch.objectReferenceValue = gs.transform;
+            soLaunch.ApplyModifiedProperties();
+            EditorUtility.SetDirty(lanzamiento);
+            Debug.Log("[ARGameSpaceEditor] LanzarAvionMovimiento conectado a ARGameSpace.");
+        }
+
         // 3. Conectar ControlBandada
         ControlBandada bandada = FindObjectOfType<ControlBandada>();
         if (bandada != null)

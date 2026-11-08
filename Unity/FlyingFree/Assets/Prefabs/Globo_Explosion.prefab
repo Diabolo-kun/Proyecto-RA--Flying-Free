@@ -1184,8 +1184,8 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 6932516594326744166}
-  - component: {fileID: 6042250411706581460}
   - component: {fileID: 5667481062157523274}
+  - component: {fileID: 5615747684039390913}
   m_Layer: 0
   m_Name: Globo_Explosion
   m_TagString: Untagged
@@ -1209,27 +1209,6 @@ Transform:
   - {fileID: 185699020828642286}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!65 &6042250411706581460
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7130491110729975033}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 1
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 0.44, y: 0.44, z: 0.44}
-  m_Center: {x: 0, y: 0, z: 0}
 --- !u!114 &5667481062157523274
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1247,6 +1226,27 @@ MonoBehaviour:
   explodeAnimationState: Globo_Explosion_Explotar_Globo
   explosionEffectPrefab: {fileID: 0}
   destroyDelay: 0.8
+--- !u!135 &5615747684039390913
+SphereCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7130491110729975033}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Radius: 0.22
+  m_Center: {x: 0, y: 0, z: 0}
 --- !u!1 &7702507210876939482
 GameObject:
   m_ObjectHideFlags: 0
